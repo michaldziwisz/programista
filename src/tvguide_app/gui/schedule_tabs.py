@@ -11,6 +11,7 @@ from tvguide_app.core.favorites import FavoriteKind, FavoriteRef, FavoritesStore
 from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature, ScheduleItem, Source
 from tvguide_app.core.providers.archive_base import ArchiveProvider
 from tvguide_app.core.providers.base import ScheduleProvider
+from tvguide_app.core.settings import SettingsStore, TvAccessibilityFilters
 from tvguide_app.core.util import POLISH_MONTHS_NOMINATIVE
 
 
@@ -566,10 +567,19 @@ class TvTab(BaseScheduleTab):
 
 
 class TvAccessibilityTab(BaseScheduleTab):
-    def __init__(self, parent: wx.Window, provider: ScheduleProvider, status_bar: wx.StatusBar) -> None:
-        self._filter_ad = True
-        self._filter_jm = True
-        self._filter_n = True
+    def __init__(
+        self,
+        parent: wx.Window,
+        provider: ScheduleProvider,
+        status_bar: wx.StatusBar,
+        *,
+        settings_store: SettingsStore,
+    ) -> None:
+        self._settings_store = settings_store
+        persisted = self._settings_store.get_tv_accessibility_filters()
+        self._filter_ad = bool(persisted.ad)
+        self._filter_jm = bool(persisted.jm)
+        self._filter_n = bool(persisted.n)
         self._all_items: list[ScheduleItem] = []
         self._a11y_index_token = 0
         self._a11y_index_ready = False
@@ -581,17 +591,17 @@ class TvAccessibilityTab(BaseScheduleTab):
         header.Add(wx.StaticText(self, label="Udogodnienia:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
 
         self._ad_cb = wx.CheckBox(self, label="Audiodeskrypcja")
-        self._ad_cb.SetValue(True)
+        self._ad_cb.SetValue(self._filter_ad)
         self._ad_cb.Bind(wx.EVT_CHECKBOX, self._on_filter_changed)
         header.Add(self._ad_cb, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
 
         self._jm_cb = wx.CheckBox(self, label="Język migowy")
-        self._jm_cb.SetValue(True)
+        self._jm_cb.SetValue(self._filter_jm)
         self._jm_cb.Bind(wx.EVT_CHECKBOX, self._on_filter_changed)
         header.Add(self._jm_cb, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
 
         self._n_cb = wx.CheckBox(self, label="Napisy")
-        self._n_cb.SetValue(True)
+        self._n_cb.SetValue(self._filter_n)
         self._n_cb.Bind(wx.EVT_CHECKBOX, self._on_filter_changed)
         header.Add(self._n_cb, 0, wx.ALIGN_CENTER_VERTICAL)
 
@@ -614,6 +624,13 @@ class TvAccessibilityTab(BaseScheduleTab):
             self._filter_jm = bool(self._jm_cb.IsChecked())
         if hasattr(self, "_n_cb"):
             self._filter_n = bool(self._n_cb.IsChecked())
+
+        try:
+            self._settings_store.set_tv_accessibility_filters(
+                TvAccessibilityFilters(ad=self._filter_ad, jm=self._filter_jm, n=self._filter_n)
+            )
+        except Exception:  # noqa: BLE001
+            self._status_bar.SetStatusText("Nie udało się zapisać filtrów.")
         self._clear_schedule_view()
         self._expanded_by_source.clear()
         self._expanded_by_day.clear()

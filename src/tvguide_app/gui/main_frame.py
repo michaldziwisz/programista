@@ -18,6 +18,7 @@ from tvguide_app.core.providers.favorites import FavoritesProvider
 from tvguide_app.core.providers.fandom_archive import FandomArchiveProvider
 from tvguide_app.core.providers.polskieradio import PolskieRadioProvider
 from tvguide_app.core.providers.teleman import TelemanProvider
+from tvguide_app.core.settings import SettingsStore
 from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
 
@@ -49,6 +50,8 @@ class MainFrame(wx.Frame):
             tv=self._providers.runtime.tv,
             radio=self._providers.runtime.radio,
         )
+
+        self._settings_store = SettingsStore(self._default_settings_path())
 
         self._status_bar = self.CreateStatusBar()
 
@@ -107,6 +110,12 @@ class MainFrame(wx.Frame):
         return path / "favorites.json"
 
     @staticmethod
+    def _default_settings_path() -> Path:
+        path = Path(user_data_dir("Programista", "Programista"))
+        path.mkdir(parents=True, exist_ok=True)
+        return path / "settings.json"
+
+    @staticmethod
     def _app_version() -> str:
         try:
             from tvguide_app import __version__
@@ -160,6 +169,7 @@ class MainFrame(wx.Frame):
             self._notebook,
             self._providers.runtime.tv_accessibility,
             self._status_bar,
+            settings_store=self._settings_store,
         )
         self._radio_tab = RadioTab(
             self._notebook,
