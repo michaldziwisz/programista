@@ -98,6 +98,7 @@ class MainFrame(wx.Frame):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         self._notebook = wx.Notebook(panel, style=wx.TAB_TRAVERSAL)
+        self._notebook.Bind(wx.EVT_NAVIGATION_KEY, self._on_notebook_navigation_key)
 
         self._tv_tab = TvTab(self._notebook, self._providers.runtime.tv, self._status_bar)
         self._radio_tab = RadioTab(self._notebook, self._providers.runtime.radio, self._status_bar)
@@ -109,6 +110,22 @@ class MainFrame(wx.Frame):
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)
+
+    def _on_notebook_navigation_key(self, evt: wx.NavigationKeyEvent) -> None:
+        if not evt.IsFromTab():
+            evt.Skip()
+            return
+
+        page = self._notebook.GetCurrentPage()
+        if not page:
+            evt.Skip()
+            return
+
+        direction = wx.NavigationKeyEvent.IsForward if evt.GetDirection() else wx.NavigationKeyEvent.IsBackward
+        if page.NavigateIn(flags=direction):
+            return
+
+        evt.Skip()
 
     def _active_tab(self):
         idx = self._notebook.GetSelection()
