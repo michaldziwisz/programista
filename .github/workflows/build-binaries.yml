@@ -1,0 +1,95 @@
+name: Build binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e .
+          python -m pip install -U pyinstaller
+
+      - name: Tests
+        run: |
+          python -m pip install -e ".[dev]"
+          pytest -q
+
+      - name: Build (PyInstaller)
+        shell: bash
+        run: |
+          python -c "import tvguide_app; print(tvguide_app.__version__)" > VERSION.txt
+          VERSION="$(cat VERSION.txt)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          rm -rf build dist
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            python -m PyInstaller \
+              --noconfirm \
+              --clean \
+              --name "Programista" \
+              --windowed \
+              run_programista.py
+          else
+            python -m PyInstaller \
+              --noconfirm \
+              --clean \
+              --name "Programista" \
+              --windowed \
+              --onefile \
+              run_programista.py
+          fi
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "dist/Programista.exe" "out/Programista-${VERSION}-windows-x64.exe"
+
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p out
+          chmod +x "dist/Programista"
+          tar -C dist -czf "out/Programista-${VERSION}-linux-x64.tar.gz" "Programista"
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ -d "dist/Programista.app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "dist/Programista.app" "out/Programista-${VERSION}-macos.zip"
+          else
+            ditto -c -k --sequesterRsrc --keepParent "dist/Programista" "out/Programista-${VERSION}-macos.zip"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Programista-${{ env.VERSION }}-${{ runner.os }}
+          path: out/*
+
+      - name: Upload to GitHub Release (tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
