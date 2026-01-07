@@ -571,13 +571,9 @@ class TvAccessibilityTab(BaseScheduleTab):
         self._filter_jm = True
         self._filter_n = True
         self._all_items: list[ScheduleItem] = []
-        self._a11y_nav_token = 0
-        self._a11y_signature: tuple[AccessibilityFeature, ...] = ("AD", "JM", "N")
-        self._a11y_pair_status: dict[str, bool | None] = {}
-        self._a11y_available_sources: set[str] = set()
-        self._a11y_available_days: set[str] = set()
-        self._a11y_days_for_source: dict[str, list[date]] = {}
-        self._a11y_sources_for_day: dict[str, list[Source]] = {}
+        self._a11y_index_token = 0
+        self._a11y_index_ready = False
+        self._a11y_pair_features: dict[str, frozenset[AccessibilityFeature] | None] = {}
         super().__init__(parent, provider, status_bar)
 
     def _create_header_controls(self, header: wx.BoxSizer) -> None:
@@ -609,7 +605,7 @@ class TvAccessibilityTab(BaseScheduleTab):
         sources, days = result
         self._sources = sources
         self._days = days
-        self._start_a11y_nav_refresh()
+        self._start_a11y_index_build()
 
     def _on_filter_changed(self, _evt: wx.CommandEvent) -> None:
         if hasattr(self, "_ad_cb"):
@@ -619,7 +615,11 @@ class TvAccessibilityTab(BaseScheduleTab):
         if hasattr(self, "_n_cb"):
             self._filter_n = bool(self._n_cb.IsChecked())
         self._clear_schedule_view()
-        self._start_a11y_nav_refresh()
+        self._expanded_by_source.clear()
+        self._expanded_by_day.clear()
+        if self._a11y_index_ready:
+            self._rebuild_nav()
+            self._status_bar.SetStatusText("Gotowe.")
 
     def _show_schedule(self, items: list[ScheduleItem]) -> None:
         self._all_items = list(items)
@@ -663,16 +663,12 @@ class TvAccessibilityTab(BaseScheduleTab):
         if not filtered and self._all_items:
             self._details.SetValue("Brak programów spełniających wybrane udogodnienia.")
 
-    def _start_a11y_nav_refresh(self) -> None:
-        self._a11y_nav_token += 1
-        token = self._a11y_nav_token
+    def _start_a11y_index_build(self) -> None:
+        self._a11y_index_token += 1
+        token = self._a11y_index_token
 
-        self._a11y_signature = self._current_a11y_signature()
-        self._a11y_pair_status = {}
-        self._a11y_available_sources = set()
-        self._a11y_available_days = set()
-        self._a11y_days_for_source = {}
-        self._a11y_sources_for_day = {}
+        self._a11y_index_ready = False
+        self._a11y_pair_features = {}
         self._expanded_by_source.clear()
         self._expanded_by_day.clear()
 
@@ -684,29 +680,24 @@ class TvAccessibilityTab(BaseScheduleTab):
 
         self._status_bar.SetStatusText("Analizowanie udogodnień…")
 
-        signature = tuple(self._a11y_signature)
         sources = list(self._sources)
         days = list(self._days)
 
-        def work() -> tuple[set[str], set[str], dict[str, bool | None]]:
-            return self._compute_a11y_availability(sources, days, signature)
+        def work() -> dict[str, frozenset[AccessibilityFeature] | None]:
+            return self._compute_a11y_pair_features(sources, days)
 
-        def on_success(result: tuple[set[str], set[str], dict[str, bool | None]]) -> None:
-            if token != self._a11y_nav_token:
+        def on_success(pair_features: dict[str, frozenset[AccessibilityFeature] | None]) -> None:
+            if token != self._a11y_index_token:
                 return
-
-            available_sources, available_days, pair_status = result
-            self._a11y_available_sources = available_sources
-            self._a11y_available_days = available_days
-            self._a11y_pair_status = pair_status
-
+            self._a11y_pair_features = pair_features
+            self._a11y_index_ready = True
             self._nav.Enable()
             self._view_choice.Enable()
             self._rebuild_nav()
             self._status_bar.SetStatusText("Gotowe.")
 
         def on_error(exc: Exception) -> None:
-            if token != self._a11y_nav_token:
+            if token != self._a11y_index_token:
                 return
             self._nav.Enable()
             self._view_choice.Enable()
@@ -714,247 +705,73 @@ class TvAccessibilityTab(BaseScheduleTab):
 
         self._run_in_thread(work, on_success=on_success, on_error=on_error)
 
-    def _compute_a11y_availability(
+    def _compute_a11y_pair_features(
         self,
         sources: list[Source],
         days: list[date],
-        signature: tuple[AccessibilityFeature, ...],
-    ) -> tuple[set[str], set[str], dict[str, bool | None]]:
-        selected = set(signature) if signature else {"AD", "JM", "N"}
-        pair_status: dict[str, bool | None] = {}
-
-        def status_for(src: Source, d: date) -> bool | None:
-            key = self._pair_key(src, d)
-            if key in pair_status:
-                return pair_status[key]
-            try:
-                items = self._provider.get_schedule(src, d, force_refresh=False)
-            except Exception:  # noqa: BLE001
-                pair_status[key] = None
-                return None
-            ok = False
-            for it in items:
-                if not it.accessibility:
-                    continue
-                if any(f in selected for f in it.accessibility):
-                    ok = True
-                    break
-            pair_status[key] = ok
-            return ok
-
-        available_sources: set[str] = set()
+    ) -> dict[str, frozenset[AccessibilityFeature] | None]:
+        out: dict[str, frozenset[AccessibilityFeature] | None] = {}
         for src in sources:
-            unknown = False
             for d in days:
-                st = status_for(src, d)
-                if st is True:
-                    available_sources.add(self._source_key(src))
-                    break
-                if st is None:
-                    unknown = True
-            else:
-                if unknown:
-                    # Be conservative: keep the node visible if we couldn't verify.
-                    available_sources.add(self._source_key(src))
+                key = self._pair_key(src, d)
+                try:
+                    items = self._provider.get_schedule(src, d, force_refresh=False)
+                except Exception:  # noqa: BLE001
+                    out[key] = None
+                    continue
+                features: set[AccessibilityFeature] = set()
+                for it in items:
+                    if it.accessibility:
+                        features.update(it.accessibility)
+                out[key] = frozenset(features)
+        return out
 
-        available_days: set[str] = set()
-        for d in days:
-            unknown = False
-            for src in sources:
-                st = status_for(src, d)
-                if st is True:
-                    available_days.add(self._day_key(d))
-                    break
-                if st is None:
-                    unknown = True
-            else:
-                if unknown:
-                    available_days.add(self._day_key(d))
-
-        return available_sources, available_days, pair_status
-
-    def _current_a11y_signature(self) -> tuple[AccessibilityFeature, ...]:
-        selected: list[AccessibilityFeature] = []
+    def _current_a11y_features(self) -> set[AccessibilityFeature]:
+        selected: set[AccessibilityFeature] = set()
         if self._filter_ad:
-            selected.append("AD")
+            selected.add("AD")
         if self._filter_jm:
-            selected.append("JM")
+            selected.add("JM")
         if self._filter_n:
-            selected.append("N")
+            selected.add("N")
         if not selected:
-            selected = ["AD", "JM", "N"]
-        return tuple(selected)
+            selected = {"AD", "JM", "N"}
+        return selected
+
+    def _pair_matches(self, source: Source, day: date) -> bool:
+        feats = self._a11y_pair_features.get(self._pair_key(source, day))
+        if feats is None:
+            return True
+        selected = self._current_a11y_features()
+        return bool(feats.intersection(selected))
 
     def _nav_root_sources(self) -> list[Source]:
-        if not self._a11y_available_sources:
+        if not self._a11y_index_ready:
             return []
-        return [s for s in self._sources if self._source_key(s) in self._a11y_available_sources]
+        out: list[Source] = []
+        for src in self._sources:
+            if any(self._pair_matches(src, d) for d in self._days):
+                out.append(src)
+        return out
 
     def _nav_root_days(self) -> list[date]:
-        if not self._a11y_available_days:
+        if not self._a11y_index_ready:
             return []
-        return [d for d in self._days if self._day_key(d) in self._a11y_available_days]
-
-    def _nav_child_days_for_source(self, source: Source) -> list[date]:
-        return self._a11y_days_for_source.get(self._source_key(source), [])
-
-    def _nav_child_sources_for_day(self, day: date) -> list[Source]:
-        return self._a11y_sources_for_day.get(self._day_key(day), [])
-
-    def _set_nav_expanded(self, key: str, *, expanded: bool) -> None:
-        if not expanded:
-            super()._set_nav_expanded(key, expanded=False)
-            return
-
-        token = self._a11y_nav_token
-
-        if key.startswith("src:") and key not in self._a11y_days_for_source:
-            src = self._source_from_key(key)
-            if not src:
-                super()._set_nav_expanded(key, expanded=True)
-                return
-            self._nav.Disable()
-            self._status_bar.SetStatusText(f"Sprawdzanie: {src.name}…")
-            signature = tuple(self._a11y_signature)
-            pair_cache = self._a11y_pair_status
-
-            def work() -> list[date]:
-                return self._compute_days_for_source(src, signature, pair_cache)
-
-            def on_success(days: list[date]) -> None:
-                if token != self._a11y_nav_token:
-                    return
-                self._nav.Enable()
-                self._a11y_days_for_source[key] = days
-                if not days:
-                    self._a11y_available_sources.discard(key)
-                    self._rebuild_nav()
-                    self._status_bar.SetStatusText("Brak programów spełniających filtry.")
-                    return
-                BaseScheduleTab._set_nav_expanded(self, key, expanded=True)
-                self._status_bar.SetStatusText("Gotowe.")
-
-            def on_error(exc: Exception) -> None:
-                if token != self._a11y_nav_token:
-                    return
-                self._nav.Enable()
-                self._on_error(exc)
-
-            self._run_in_thread(work, on_success=on_success, on_error=on_error)
-            return
-
-        if key.startswith("day:") and key not in self._a11y_sources_for_day:
-            d = self._day_from_key(key)
-            if not d:
-                super()._set_nav_expanded(key, expanded=True)
-                return
-            self._nav.Disable()
-            self._status_bar.SetStatusText(f"Sprawdzanie: {d.isoformat()}…")
-            signature = tuple(self._a11y_signature)
-            pair_cache = self._a11y_pair_status
-
-            def work() -> list[Source]:
-                return self._compute_sources_for_day(d, signature, pair_cache)
-
-            def on_success(sources: list[Source]) -> None:
-                if token != self._a11y_nav_token:
-                    return
-                self._nav.Enable()
-                self._a11y_sources_for_day[key] = sources
-                if not sources:
-                    self._a11y_available_days.discard(key)
-                    self._rebuild_nav()
-                    self._status_bar.SetStatusText("Brak programów spełniających filtry.")
-                    return
-                BaseScheduleTab._set_nav_expanded(self, key, expanded=True)
-                self._status_bar.SetStatusText("Gotowe.")
-
-            def on_error(exc: Exception) -> None:
-                if token != self._a11y_nav_token:
-                    return
-                self._nav.Enable()
-                self._on_error(exc)
-
-            self._run_in_thread(work, on_success=on_success, on_error=on_error)
-            return
-
-        super()._set_nav_expanded(key, expanded=True)
-
-    def _source_from_key(self, key: str) -> Source | None:
-        if not key.startswith("src:"):
-            return None
-        try:
-            _, provider_id, source_id = key.split(":", 2)
-        except ValueError:
-            return None
-        for src in self._sources:
-            if str(src.provider_id) == provider_id and str(src.id) == source_id:
-                return src
-        return None
-
-    @staticmethod
-    def _day_from_key(key: str) -> date | None:
-        if not key.startswith("day:"):
-            return None
-        value = key.split(":", 1)[1]
-        try:
-            return date.fromisoformat(value)
-        except ValueError:
-            return None
-
-    def _pair_status_for(
-        self,
-        src: Source,
-        d: date,
-        signature: tuple[AccessibilityFeature, ...],
-        pair_cache: dict[str, bool | None],
-    ) -> bool | None:
-        selected = set(signature) if signature else {"AD", "JM", "N"}
-        key = self._pair_key(src, d)
-        if key in pair_cache:
-            return pair_cache[key]
-        try:
-            items = self._provider.get_schedule(src, d, force_refresh=False)
-        except Exception:  # noqa: BLE001
-            pair_cache[key] = None
-            return None
-        ok = False
-        for it in items:
-            if not it.accessibility:
-                continue
-            if any(f in selected for f in it.accessibility):
-                ok = True
-                break
-        pair_cache[key] = ok
-        return ok
-
-    def _compute_days_for_source(
-        self,
-        src: Source,
-        signature: tuple[AccessibilityFeature, ...],
-        pair_cache: dict[str, bool | None],
-    ) -> list[date]:
-        allowed_days = [d for d in self._days if self._day_key(d) in self._a11y_available_days]
         out: list[date] = []
-        for d in allowed_days:
-            st = self._pair_status_for(src, d, signature, pair_cache)
-            if st is True or st is None:
+        for d in self._days:
+            if any(self._pair_matches(src, d) for src in self._sources):
                 out.append(d)
         return out
 
-    def _compute_sources_for_day(
-        self,
-        d: date,
-        signature: tuple[AccessibilityFeature, ...],
-        pair_cache: dict[str, bool | None],
-    ) -> list[Source]:
-        allowed_sources = [s for s in self._sources if self._source_key(s) in self._a11y_available_sources]
-        out: list[Source] = []
-        for src in allowed_sources:
-            st = self._pair_status_for(src, d, signature, pair_cache)
-            if st is True or st is None:
-                out.append(src)
-        return out
+    def _nav_child_days_for_source(self, source: Source) -> list[date]:
+        if not self._a11y_index_ready:
+            return []
+        return [d for d in self._days if self._pair_matches(source, d)]
+
+    def _nav_child_sources_for_day(self, day: date) -> list[Source]:
+        if not self._a11y_index_ready:
+            return []
+        return [src for src in self._sources if self._pair_matches(src, day)]
 
 
 def _format_accessibility(features: tuple[AccessibilityFeature, ...]) -> str:
