@@ -104,6 +104,7 @@ class BaseScheduleTab(wx.Panel):
             details_panel,
             style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
         )
+        self._details.Bind(wx.EVT_KEY_DOWN, self._on_last_control_key_down)
         details_sizer.Add(self._details, 1, wx.EXPAND)
         details_panel.SetSizer(details_sizer)
 
@@ -113,6 +114,19 @@ class BaseScheduleTab(wx.Panel):
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.SetSizer(root)
+
+    def _on_last_control_key_down(self, evt: wx.KeyEvent) -> None:
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and not evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            parent = self.GetParent()
+            if isinstance(parent, wx.Notebook):
+                parent.SetFocus()
+                return
+        evt.Skip()
 
     def _create_header_controls(self, _header: wx.BoxSizer) -> None:
         return
@@ -538,11 +552,25 @@ class ArchiveTab(wx.Panel):
         self._list = wx.ListCtrl(right, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self._list.InsertColumn(0, "Od", width=70)
         self._list.InsertColumn(1, "Tytuł", width=740)
+        self._list.Bind(wx.EVT_KEY_DOWN, self._on_last_control_key_down)
         right_sizer.Add(self._list, 1, wx.EXPAND)
         right.SetSizer(right_sizer)
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.SetSizer(root)
+
+    def _on_last_control_key_down(self, evt: wx.KeyEvent) -> None:
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and not evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            parent = self.GetParent()
+            if isinstance(parent, wx.Notebook):
+                parent.SetFocus()
+                return
+        evt.Skip()
 
     def refresh(self, *, force: bool) -> None:
         selected = self._get_selected_station()
