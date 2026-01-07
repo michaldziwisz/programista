@@ -112,18 +112,13 @@ class MainFrame(wx.Frame):
         panel.SetSizer(sizer)
 
     def _on_char_hook(self, evt: wx.KeyEvent) -> None:
-        if (
-            evt.GetKeyCode() == wx.WXK_TAB
-            and evt.ShiftDown()
-            and not evt.ControlDown()
-            and not evt.AltDown()
-        ):
-            focused = wx.Window.FindFocus()
-            win: wx.Window | None = focused
-            while win is not None:
-                if win.Navigate(flags=wx.NavigationKeyEvent.IsBackward):
-                    return
-                win = win.GetParent()
+        if evt.GetKeyCode() == wx.WXK_TAB and not evt.ControlDown() and not evt.AltDown():
+            direction = (
+                wx.NavigationKeyEvent.IsBackward if evt.ShiftDown() else wx.NavigationKeyEvent.IsForward
+            )
+            # Ensure consistent focus traversal across wx controls (some eat Shift+Tab).
+            if self.Navigate(flags=direction | wx.NavigationKeyEvent.FromTab | wx.NavigationKeyEvent.WinChange):
+                return
         evt.Skip()
 
     def _active_tab(self):
