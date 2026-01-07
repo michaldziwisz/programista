@@ -95,7 +95,7 @@ class MainFrame(wx.Frame):
         self.SetMenuBar(menubar)
 
     def _build_ui(self) -> None:
-        panel = wx.Panel(self)
+        panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         self._notebook = wx.Notebook(panel)
@@ -112,12 +112,28 @@ class MainFrame(wx.Frame):
         panel.SetSizer(sizer)
 
     def _on_char_hook(self, evt: wx.KeyEvent) -> None:
-        if evt.GetKeyCode() == wx.WXK_TAB and not evt.ControlDown() and not evt.AltDown():
-            direction = (
-                wx.NavigationKeyEvent.IsBackward if evt.ShiftDown() else wx.NavigationKeyEvent.IsForward
-            )
-            # Ensure consistent focus traversal across wx controls (some eat Shift+Tab).
-            if self.Navigate(flags=direction | wx.NavigationKeyEvent.FromTab | wx.NavigationKeyEvent.WinChange):
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            flags = wx.NavigationKeyEvent.IsBackward | wx.NavigationKeyEvent.FromTab | wx.NavigationKeyEvent.WinChange
+            focused = wx.Window.FindFocus()
+            win: wx.Window | None = focused
+            while win is not None:
+                if win.Navigate(flags=flags):
+                    return
+                win = win.GetParent()
+
+            if (
+                focused
+                and hasattr(self, "_notebook")
+                and self._notebook
+                and focused is not self._notebook
+                and self._notebook.IsDescendant(focused)
+            ):
+                self._notebook.SetFocus()
                 return
         evt.Skip()
 

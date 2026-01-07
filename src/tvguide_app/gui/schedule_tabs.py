@@ -36,7 +36,7 @@ class NavRow:
 
 class BaseScheduleTab(wx.Panel):
     def __init__(self, parent: wx.Window, provider: ScheduleProvider, status_bar: wx.StatusBar) -> None:
-        super().__init__(parent)
+        super().__init__(parent, style=wx.TAB_TRAVERSAL)
         self._provider = provider
         self._status_bar = status_bar
         self._view_mode: ViewMode = "by_source"
@@ -70,8 +70,8 @@ class BaseScheduleTab(wx.Panel):
         splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE)
         splitter.SetMinimumPaneSize(200)
 
-        left = wx.Panel(splitter)
-        mid = wx.Panel(splitter)
+        left = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
+        mid = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
         splitter.SplitVertically(left, mid, 320)
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -87,8 +87,8 @@ class BaseScheduleTab(wx.Panel):
         mid_splitter = wx.SplitterWindow(mid, style=wx.SP_LIVE_UPDATE)
         mid_splitter.SetMinimumPaneSize(140)
 
-        list_panel = wx.Panel(mid_splitter)
-        details_panel = wx.Panel(mid_splitter)
+        list_panel = wx.Panel(mid_splitter, style=wx.TAB_TRAVERSAL)
+        details_panel = wx.Panel(mid_splitter, style=wx.TAB_TRAVERSAL)
         mid_splitter.SplitHorizontally(list_panel, details_panel, 320)
 
         list_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -495,7 +495,7 @@ class ArchiveTab(wx.Panel):
         provider: ArchiveProvider,
         status_bar: wx.StatusBar,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, style=wx.TAB_TRAVERSAL)
         self._provider = provider
         self._status_bar = status_bar
         self._request_token = 0
@@ -520,8 +520,8 @@ class ArchiveTab(wx.Panel):
         splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE)
         splitter.SetMinimumPaneSize(240)
 
-        left = wx.Panel(splitter)
-        right = wx.Panel(splitter)
+        left = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
+        right = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
         splitter.SplitVertically(left, right, 320)
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
