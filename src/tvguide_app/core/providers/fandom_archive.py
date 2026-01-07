@@ -464,11 +464,17 @@ def strip_wiki_markup(text: str) -> str:
     return clean_text(text)
 
 
+def _channel_key(name: str) -> str:
+    compact = re.sub(r"\s+", "", (name or "").casefold())
+    if compact in {"tvp1", "tp1", "program1"}:
+        return "tvp1"
+    if compact in {"tvp2", "tp2", "program2"}:
+        return "tvp2"
+    return compact
+
+
 def is_default_single_channel_name(name: str) -> bool:
-    if not name:
-        return False
-    compact = re.sub(r"\s+", "", name.casefold())
-    return compact == "tvp1"
+    return _channel_key(name) == "tvp1"
 
 
 def extract_time_lines_from_wikitext(wikitext: str) -> list[str]:
@@ -664,7 +670,7 @@ def extract_channel_schedule_from_wikitext(wikitext: str, channel_name: str) -> 
     if not wikitext:
         return ""
 
-    channel_norm = channel_name.casefold().strip()
+    target_key = _channel_key(channel_name)
 
     heading_re = re.compile(r"^(?P<eq>={3,6})\s*(?P<title>.*?)\s*(?P=eq)\s*$")
 
@@ -684,7 +690,7 @@ def extract_channel_schedule_from_wikitext(wikitext: str, channel_name: str) -> 
                 continue
 
             current_channel = heading_title
-            collecting = heading_title_norm == channel_norm
+            collecting = _channel_key(current_channel) == target_key
             continue
 
         if collecting:
@@ -701,7 +707,7 @@ def extract_channel_schedule_from_wikitext(wikitext: str, channel_name: str) -> 
         # Another fallback for plain-text sections (no headings/categories).
         pairs = split_wikitext_plain_channel_sections(wikitext)
         for ch, b in pairs:
-            if ch.casefold().strip() == channel_norm:
+            if _channel_key(ch) == target_key:
                 return b
 
         # If the page contains schedule entries but no channel labels, assume
@@ -712,7 +718,7 @@ def extract_channel_schedule_from_wikitext(wikitext: str, channel_name: str) -> 
                 return "\n".join(time_lines)
         return ""
 
-    idx = next((i for i, c in enumerate(channels) if c.casefold().strip() == channel_norm), None)
+    idx = next((i for i, c in enumerate(channels) if _channel_key(c) == target_key), None)
     if idx is None:
         return ""
     if idx >= len(blocks):

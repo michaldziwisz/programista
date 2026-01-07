@@ -70,6 +70,26 @@ def test_extract_channels_and_schedule_from_old_style_wikitext() -> None:
     assert "8.00" in tvp2
 
 
+def test_category_tp1_tp2_channels_match_program_1_2_sections() -> None:
+    wikitext = """
+Program 1<br />8:50 Program dnia<br />9:00 A
+
+Program 2<br />11:30 Powitanie<br />12:00 B
+
+BBC1<br />7.00 Children's BBC
+[[Kategoria:Ramówki TP1 z 1990 roku]]
+[[Kategoria:Ramówki TP2 z 1990 roku]]
+[[Kategoria:Ramówki BBC1 z 1990 roku]]
+"""
+    channels = extract_channels_from_wikitext(wikitext)
+    assert channels == ["TP1", "TP2", "BBC1"]
+
+    tp1 = extract_channel_schedule_from_wikitext(wikitext, "TP1")
+    assert "8:50 Program dnia" in tp1
+    tp2 = extract_channel_schedule_from_wikitext(wikitext, "TP2")
+    assert "11:30 Powitanie" in tp2
+
+
 def test_parse_entry_start_and_rest_accepts_time_ranges() -> None:
     t, rest = parse_entry_start_and_rest("5.45-9.00 Blok pr. dla dzieci")
     assert t is not None and t.hour == 5 and t.minute == 45
