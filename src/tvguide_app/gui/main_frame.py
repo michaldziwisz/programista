@@ -21,7 +21,6 @@ from tvguide_app.gui.schedule_tabs import ArchiveTab, RadioTab, TvTab
 class MainFrame(wx.Frame):
     def __init__(self) -> None:
         super().__init__(None, title="Programista", size=(1100, 700))
-        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         cache_path = self._default_cache_path()
         self._cache = SqliteCache(cache_path)
@@ -98,7 +97,7 @@ class MainFrame(wx.Frame):
         panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self._notebook = wx.Notebook(panel)
+        self._notebook = wx.Notebook(panel, style=wx.TAB_TRAVERSAL)
 
         self._tv_tab = TvTab(self._notebook, self._providers.runtime.tv, self._status_bar)
         self._radio_tab = RadioTab(self._notebook, self._providers.runtime.radio, self._status_bar)
@@ -110,32 +109,6 @@ class MainFrame(wx.Frame):
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)
-
-    def _on_char_hook(self, evt: wx.KeyEvent) -> None:
-        if (
-            evt.GetKeyCode() == wx.WXK_TAB
-            and evt.ShiftDown()
-            and not evt.ControlDown()
-            and not evt.AltDown()
-        ):
-            flags = wx.NavigationKeyEvent.IsBackward | wx.NavigationKeyEvent.FromTab | wx.NavigationKeyEvent.WinChange
-            focused = wx.Window.FindFocus()
-            win: wx.Window | None = focused
-            while win is not None:
-                if win.Navigate(flags=flags):
-                    return
-                win = win.GetParent()
-
-            if (
-                focused
-                and hasattr(self, "_notebook")
-                and self._notebook
-                and focused is not self._notebook
-                and self._notebook.IsDescendant(focused)
-            ):
-                self._notebook.SetFocus()
-                return
-        evt.Skip()
 
     def _active_tab(self):
         idx = self._notebook.GetSelection()

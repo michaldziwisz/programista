@@ -67,7 +67,7 @@ class BaseScheduleTab(wx.Panel):
 
         root.Add(header, 0, wx.EXPAND | wx.ALL, 8)
 
-        splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE)
+        splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.TAB_TRAVERSAL)
         splitter.SetMinimumPaneSize(200)
 
         left = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
@@ -84,7 +84,7 @@ class BaseScheduleTab(wx.Panel):
         left_sizer.Add(self._nav, 1, wx.EXPAND)
         left.SetSizer(left_sizer)
 
-        mid_splitter = wx.SplitterWindow(mid, style=wx.SP_LIVE_UPDATE)
+        mid_splitter = wx.SplitterWindow(mid, style=wx.SP_LIVE_UPDATE | wx.TAB_TRAVERSAL)
         mid_splitter.SetMinimumPaneSize(140)
 
         list_panel = wx.Panel(mid_splitter, style=wx.TAB_TRAVERSAL)
@@ -517,7 +517,7 @@ class ArchiveTab(wx.Panel):
         header.Add(wx.StaticText(self, label="Wybierz: Rok → Miesiąc → Dzień → Stacja"), 0, wx.ALIGN_CENTER_VERTICAL)
         root.Add(header, 0, wx.EXPAND | wx.ALL, 8)
 
-        splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE)
+        splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.TAB_TRAVERSAL)
         splitter.SetMinimumPaneSize(240)
 
         left = wx.Panel(splitter, style=wx.TAB_TRAVERSAL)
