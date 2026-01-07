@@ -15,7 +15,7 @@ if (-not (Test-Path $venvPath)) {
 $python = Join-Path $venvPath "Scripts\\python.exe"
 
 & $python -m pip install -U pip
-& $python -m pip install -e .
+& $python -m pip install -e ".[gui]"
 & $python -m pip install -U pyinstaller
 
 $distPath = Join-Path $root "dist-windows"

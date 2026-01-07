@@ -11,7 +11,7 @@ Priorytety: 100% natywne kontrolki (wxPython), dostępność, cache w SQLite, mo
 
 1) Utwórz venv (Python 3.12+)
 2) Zainstaluj zależności:
-   - `pip install -e .[dev]`
+   - `pip install -e ".[dev,gui]"`
 3) Uruchom:
    - `python -m tvguide_app`
 

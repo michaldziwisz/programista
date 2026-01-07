@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -27,12 +27,11 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install -U pip
-          python -m pip install -e .
+          python -m pip install -e ".[dev,gui]"
           python -m pip install -U pyinstaller
 
       - name: Tests
         run: |
-          python -m pip install -e ".[dev]"
           pytest -q
 
       - name: Build (PyInstaller)
@@ -66,14 +65,6 @@ jobs:
         run: |
           mkdir -p out
           cp "dist/Programista.exe" "out/Programista-${VERSION}-windows-x64.exe"
-
-      - name: Package artifact (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          mkdir -p out
-          chmod +x "dist/Programista"
-          tar -C dist -czf "out/Programista-${VERSION}-linux-x64.tar.gz" "Programista"
 
       - name: Package artifact (macOS)
         if: runner.os == 'macOS'
