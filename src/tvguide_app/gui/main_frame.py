@@ -54,7 +54,39 @@ class MainFrame(wx.Frame):
 
         self._build_menu()
         self._build_ui()
+        self._install_tab_shortcuts()
         self._auto_update_providers()
+
+    def _install_tab_shortcuts(self) -> None:
+        if not hasattr(self, "_notebook"):
+            return
+
+        entries: list[tuple[int, int, int]] = []
+        max_tabs = min(self._notebook.GetPageCount(), 9)
+        for idx in range(max_tabs):
+            digit = str(idx + 1)
+            cmd_id = wx.NewIdRef()
+            self.Bind(wx.EVT_MENU, lambda _evt, i=idx: self._select_tab(i), id=cmd_id)
+
+            entries.append((wx.ACCEL_CTRL, ord(digit), cmd_id))
+            entries.append((wx.ACCEL_CMD, ord(digit), cmd_id))
+
+            numpad = getattr(wx, f"WXK_NUMPAD{idx + 1}", None)
+            if isinstance(numpad, int):
+                entries.append((wx.ACCEL_CTRL, numpad, cmd_id))
+                entries.append((wx.ACCEL_CMD, numpad, cmd_id))
+
+        if entries:
+            self.SetAcceleratorTable(wx.AcceleratorTable(entries))
+
+    def _select_tab(self, index: int) -> None:
+        if not hasattr(self, "_notebook"):
+            return
+        count = self._notebook.GetPageCount()
+        if index < 0 or index >= count:
+            return
+        self._notebook.SetSelection(index)
+        self._notebook.SetFocus()
 
     @staticmethod
     def _default_cache_path() -> Path:
