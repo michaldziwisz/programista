@@ -1,7 +1,6 @@
 name: Build binaries
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -76,11 +75,6 @@ jobs:
           else
             ditto -c -k --sequesterRsrc --keepParent "dist/Programista" "out/Programista-${VERSION}-macos.zip"
           fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Programista-${{ env.VERSION }}-${{ runner.os }}
-          path: out/*
 
       - name: Upload to GitHub Release (tag)
         if: startsWith(github.ref, 'refs/tags/')
