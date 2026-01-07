@@ -119,8 +119,11 @@ class MainFrame(wx.Frame):
             and not evt.AltDown()
         ):
             focused = wx.Window.FindFocus()
-            if focused and focused.Navigate(flags=wx.NavigationKeyEvent.IsBackward):
-                return
+            win: wx.Window | None = focused
+            while win is not None:
+                if win.Navigate(flags=wx.NavigationKeyEvent.IsBackward):
+                    return
+                win = win.GetParent()
         evt.Skip()
 
     def _active_tab(self):
