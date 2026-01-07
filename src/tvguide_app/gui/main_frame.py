@@ -21,6 +21,7 @@ from tvguide_app.gui.schedule_tabs import ArchiveTab, RadioTab, TvTab
 class MainFrame(wx.Frame):
     def __init__(self) -> None:
         super().__init__(None, title="Programista", size=(1100, 700))
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         cache_path = self._default_cache_path()
         self._cache = SqliteCache(cache_path)
@@ -109,6 +110,18 @@ class MainFrame(wx.Frame):
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)
+
+    def _on_char_hook(self, evt: wx.KeyEvent) -> None:
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            focused = wx.Window.FindFocus()
+            if focused and focused.Navigate(flags=wx.NavigationKeyEvent.IsBackward):
+                return
+        evt.Skip()
 
     def _active_tab(self):
         idx = self._notebook.GetSelection()

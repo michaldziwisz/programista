@@ -460,6 +460,12 @@ class RadioTab(BaseScheduleTab):
         list_ctrl.InsertColumn(0, "Od", width=70)
         list_ctrl.InsertColumn(1, "Tytuł", width=520)
 
+    def _on_loaded_sources_days(self, result: tuple[list[Source], list[date]]) -> None:
+        sources, days = result
+        today = date.today()
+        filtered = [d for d in days if d >= today]
+        super()._on_loaded_sources_days((sources, filtered or [today]))
+
 
 @dataclass(frozen=True)
 class ArchiveNodeData:
