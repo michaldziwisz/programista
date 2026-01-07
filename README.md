@@ -18,3 +18,11 @@ Priorytety: 100% natywne kontrolki (wxPython), dostępność, cache w SQLite, mo
 ## Testy
 
 - `pytest`
+
+## Binarka (Windows)
+
+W WSL możesz pobrać najnowszą binarkę do `dist-windows/programista.exe`:
+- `bash scripts/download_windows_release.sh`
+
+Albo konkretny tag:
+- `bash scripts/download_windows_release.sh v0.1.3`
