@@ -2,7 +2,9 @@
 
 Aplikacja desktop do przeglądania ramówek:
 - **Telewizja** (Teleman)
-- **Radio** (polskieradio.pl)
+- **Programy TV z udogodnieniami** (TVP / Polsat / Puls) — napisy / język migowy / audiodeskrypcja
+- **Radio** (Polskie Radio / Radio Kierowców / Radio Nowy Świat / Radio 357)
+- **Ulubione** (TV + Radio)
 - **Programy archiwalne** (staratelewizja.fandom.com)
 
 Priorytety: 100% natywne kontrolki (wxPython), dostępność, cache w SQLite, możliwość wymuszenia odświeżenia oraz aktualizowalni dostawcy treści.

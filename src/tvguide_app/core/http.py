@@ -46,6 +46,7 @@ class HttpClient:
         with self._lock:
             resp = self._session.get(url, timeout=timeout_seconds)
         resp.raise_for_status()
+        _ensure_reasonable_text_encoding(resp)
         text = resp.text
 
         if cache_key and ttl_seconds is not None:
@@ -70,6 +71,7 @@ class HttpClient:
         with self._lock:
             resp = self._session.post(url, data=data, timeout=timeout_seconds)
         resp.raise_for_status()
+        _ensure_reasonable_text_encoding(resp)
         text = resp.text
 
         if cache_key and ttl_seconds is not None:
@@ -81,3 +83,13 @@ class HttpClient:
         if seconds <= 0:
             return
         time.sleep(seconds)
+
+
+def _ensure_reasonable_text_encoding(resp: requests.Response) -> None:
+    content_type = (resp.headers.get("content-type") or "").lower()
+    if "charset=" in content_type:
+        return
+    # requests defaults to ISO-8859-1 for many text/* responses with missing charset;
+    # prefer detected encoding in that case to avoid mojibake (e.g. Polsat modules).
+    if (resp.encoding or "").lower() == "iso-8859-1" and resp.apparent_encoding:
+        resp.encoding = resp.apparent_encoding

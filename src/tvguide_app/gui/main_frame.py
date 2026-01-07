@@ -9,13 +9,16 @@ import wx
 from platformdirs import user_cache_dir, user_data_dir
 
 from tvguide_app.core.cache import SqliteCache
+from tvguide_app.core.favorites import FavoritesStore
 from tvguide_app.core.http import HttpClient
 from tvguide_app.core.provider_packs.loader import PackStore
 from tvguide_app.core.provider_packs.service import ProviderPackService
+from tvguide_app.core.provider_packs.wrappers import EmptyScheduleProvider
+from tvguide_app.core.providers.favorites import FavoritesProvider
 from tvguide_app.core.providers.fandom_archive import FandomArchiveProvider
 from tvguide_app.core.providers.polskieradio import PolskieRadioProvider
 from tvguide_app.core.providers.teleman import TelemanProvider
-from tvguide_app.gui.schedule_tabs import ArchiveTab, RadioTab, TvTab
+from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
 
 class MainFrame(wx.Frame):
@@ -34,10 +37,18 @@ class MainFrame(wx.Frame):
             store=PackStore(self._default_providers_path()),
             app_version=self._app_version(),
             fallback_tv=TelemanProvider(self._http),
+            fallback_tv_accessibility=EmptyScheduleProvider(),
             fallback_radio=PolskieRadioProvider(self._http),
             fallback_archive=FandomArchiveProvider(self._http, year=date.today().year),
         )
         self._providers.load_installed()
+
+        self._favorites_store = FavoritesStore(self._default_favorites_path())
+        self._favorites_provider = FavoritesProvider(
+            self._favorites_store,
+            tv=self._providers.runtime.tv,
+            radio=self._providers.runtime.radio,
+        )
 
         self._status_bar = self.CreateStatusBar()
 
@@ -56,6 +67,12 @@ class MainFrame(wx.Frame):
         path = Path(user_data_dir("Programista", "Programista")) / "providers"
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @staticmethod
+    def _default_favorites_path() -> Path:
+        path = Path(user_data_dir("Programista", "Programista"))
+        path.mkdir(parents=True, exist_ok=True)
+        return path / "favorites.json"
 
     @staticmethod
     def _app_version() -> str:
@@ -100,12 +117,38 @@ class MainFrame(wx.Frame):
         self._notebook = wx.Notebook(panel, style=wx.TAB_TRAVERSAL)
         self._notebook.Bind(wx.EVT_NAVIGATION_KEY, self._on_notebook_navigation_key)
 
-        self._tv_tab = TvTab(self._notebook, self._providers.runtime.tv, self._status_bar)
-        self._radio_tab = RadioTab(self._notebook, self._providers.runtime.radio, self._status_bar)
+        self._tv_tab = TvTab(
+            self._notebook,
+            self._providers.runtime.tv,
+            self._status_bar,
+            favorites_store=self._favorites_store,
+            on_favorites_changed=self._on_favorites_changed,
+        )
+        self._tv_accessibility_tab = TvAccessibilityTab(
+            self._notebook,
+            self._providers.runtime.tv_accessibility,
+            self._status_bar,
+        )
+        self._radio_tab = RadioTab(
+            self._notebook,
+            self._providers.runtime.radio,
+            self._status_bar,
+            favorites_store=self._favorites_store,
+            on_favorites_changed=self._on_favorites_changed,
+        )
+        self._favorites_tab = FavoritesTab(
+            self._notebook,
+            self._favorites_provider,
+            self._status_bar,
+            favorites_store=self._favorites_store,
+            on_favorites_changed=self._on_favorites_changed,
+        )
         self._archive_tab = ArchiveTab(self._notebook, self._providers.runtime.archive, self._status_bar)
 
         self._notebook.AddPage(self._tv_tab, "Telewizja")
+        self._notebook.AddPage(self._tv_accessibility_tab, "Programy TV z udogodnieniami")
         self._notebook.AddPage(self._radio_tab, "Radio")
+        self._notebook.AddPage(self._favorites_tab, "Ulubione")
         self._notebook.AddPage(self._archive_tab, "Programy archiwalne")
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
@@ -148,9 +191,16 @@ class MainFrame(wx.Frame):
         if hasattr(tab, "refresh_all"):
             tab.refresh_all(force=True)
 
+    def _on_favorites_changed(self) -> None:
+        self._favorites_tab.refresh_all(force=False)
+        self._tv_tab.sync_favorites()
+        self._radio_tab.sync_favorites()
+
     def _refresh_all_tabs(self) -> None:
         self._tv_tab.refresh_all(force=False)
+        self._tv_accessibility_tab.refresh_all(force=False)
         self._radio_tab.refresh_all(force=False)
+        self._favorites_tab.refresh_all(force=False)
         self._archive_tab.refresh_all(force=False)
 
     def _auto_update_providers(self) -> None:

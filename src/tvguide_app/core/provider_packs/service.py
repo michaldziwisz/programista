@@ -21,6 +21,7 @@ from tvguide_app.core.providers.base import ScheduleProvider
 @dataclass(frozen=True)
 class ProviderRuntime:
     tv: ReloadableScheduleProvider
+    tv_accessibility: ReloadableScheduleProvider
     radio: ReloadableScheduleProvider
     archive: ReloadableArchiveProvider
 
@@ -34,6 +35,7 @@ class ProviderPackService:
         store: PackStore,
         app_version: str,
         fallback_tv: ScheduleProvider,
+        fallback_tv_accessibility: ScheduleProvider,
         fallback_radio: ScheduleProvider,
         fallback_archive: ArchiveProvider,
     ) -> None:
@@ -44,17 +46,21 @@ class ProviderPackService:
 
         self.runtime = ProviderRuntime(
             tv=ReloadableScheduleProvider(fallback_tv),
+            tv_accessibility=ReloadableScheduleProvider(fallback_tv_accessibility),
             radio=ReloadableScheduleProvider(fallback_radio),
             archive=ReloadableArchiveProvider(fallback_archive),
         )
 
     def load_installed(self) -> None:
         tv = self._load_schedule_kind("tv")
+        tv_access = self._load_schedule_kind("tv_accessibility")
         radio = self._load_schedule_kind("radio")
         archive = self._load_archive_kind()
 
         if tv:
             self.runtime.tv.set_delegate(tv)
+        if tv_access:
+            self.runtime.tv_accessibility.set_delegate(tv_access)
         if radio:
             self.runtime.radio.set_delegate(radio)
         if archive:

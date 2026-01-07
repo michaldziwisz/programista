@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-ProviderKind = Literal["tv", "radio", "archive"]
+ProviderKind = Literal["tv", "radio", "archive", "tv_accessibility"]
 
 
 class PackFormatError(ValueError):
@@ -78,6 +78,24 @@ def parse_latest_manifest(text: str) -> LatestManifest:
             raise PackFormatError(f"Brak/nieprawidłowe packs.{kind}.asset w latest.json.")
         packs[kind] = LatestPackInfo(version=version.strip(), sha256=sha256.strip(), asset=asset.strip())
 
+    # Optional packs (older latest.json may not have them).
+    for kind in ("tv_accessibility",):
+        entry = packs_raw.get(kind)
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            raise PackFormatError(f"Brak/nieprawidłowe packs.{kind} w latest.json.")
+        version = entry.get("version")
+        sha256 = entry.get("sha256")
+        asset = entry.get("asset")
+        if not isinstance(version, str) or not version.strip():
+            raise PackFormatError(f"Brak/nieprawidłowe packs.{kind}.version w latest.json.")
+        if not isinstance(sha256, str) or len(sha256.strip()) < 32:
+            raise PackFormatError(f"Brak/nieprawidłowe packs.{kind}.sha256 w latest.json.")
+        if not isinstance(asset, str) or not asset.strip():
+            raise PackFormatError(f"Brak/nieprawidłowe packs.{kind}.asset w latest.json.")
+        packs[kind] = LatestPackInfo(version=version.strip(), sha256=sha256.strip(), asset=asset.strip())
+
     return LatestManifest(schema=schema, provider_api_version=api_version, packs=packs)
 
 
@@ -93,7 +111,7 @@ def read_pack_manifest(pack_dir: Path) -> PackManifest:
         raise PackFormatError("Nieobsługiwana wersja schema w pack.json.")
 
     kind = data.get("kind")
-    if kind not in ("tv", "radio", "archive"):
+    if kind not in ("tv", "radio", "archive", "tv_accessibility"):
         raise PackFormatError("Brak/nieprawidłowe kind w pack.json.")
 
     version = data.get("version")
@@ -125,4 +143,3 @@ def read_pack_manifest(pack_dir: Path) -> PackManifest:
         provider_api_version=api_version,
         min_app_version=min_app_version.strip() if isinstance(min_app_version, str) else None,
     )
-

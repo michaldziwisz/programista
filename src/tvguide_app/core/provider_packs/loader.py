@@ -73,7 +73,7 @@ class PackStore:
         if not isinstance(data, dict):
             return {}
         out: dict[ProviderKind, str] = {}
-        for kind in ("tv", "radio", "archive"):
+        for kind in ("tv", "radio", "archive", "tv_accessibility"):
             v = data.get(kind)
             if isinstance(v, str) and v.strip():
                 out[kind] = v.strip()
@@ -168,7 +168,7 @@ class PackLoader:
         result = func(http)
         if not isinstance(result, list):
             raise PackFormatError("Entrypoint powinien zwracać listę dostawców.")
-        if kind in ("tv", "radio"):
+        if kind in ("tv", "radio", "tv_accessibility"):
             providers: list[ScheduleProvider] = []
             for p in result:
                 if not isinstance(p, ScheduleProvider):

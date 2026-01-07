@@ -2,10 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, time
-from typing import NewType
+from typing import NewType, Literal
 
 ProviderId = NewType("ProviderId", str)
 SourceId = NewType("SourceId", str)
+
+AccessibilityFeature = Literal["AD", "JM", "N"]
+
+ACCESSIBILITY_FEATURE_LABELS: dict[AccessibilityFeature, str] = {
+    "AD": "audiodeskrypcja",
+    "JM": "język migowy",
+    "N": "napisy",
+}
 
 
 @dataclass(frozen=True)
@@ -26,4 +34,4 @@ class ScheduleItem:
     subtitle: str | None
     details_ref: str | None
     details_summary: str | None
-
+    accessibility: tuple[AccessibilityFeature, ...] = ()
