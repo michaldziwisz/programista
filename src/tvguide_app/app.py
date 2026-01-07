@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import sys
 
+# Provider packs are downloaded at runtime and may import parts of stdlib that
+# are not referenced by the core app. PyInstaller only bundles modules it sees
+# during analysis, so we import required stdlib modules here to avoid crashes.
+# (E.g. Puls EPG provider uses xml.etree.ElementTree.)
+import xml.etree.ElementTree  # noqa: F401
+
 def _enable_windows_dpi_awareness() -> None:
     if sys.platform != "win32":
         return
