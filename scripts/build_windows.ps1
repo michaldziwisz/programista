@@ -21,8 +21,8 @@ $python = Join-Path $venvPath "Scripts\\python.exe"
 $distPath = Join-Path $root "dist-windows"
 $buildPath = Join-Path $root "build-windows"
 
-$exePath = Join-Path $distPath "Programista.exe"
-Get-Process -Name "Programista" -ErrorAction SilentlyContinue | Stop-Process -Force
+$exePath = Join-Path $distPath "programista.exe"
+Get-Process -Name "programista" -ErrorAction SilentlyContinue | Stop-Process -Force
 for ($i = 0; $i -lt 10 -and (Test-Path $exePath); $i++) {
   try {
     Remove-Item -Force $exePath
@@ -35,7 +35,7 @@ for ($i = 0; $i -lt 10 -and (Test-Path $exePath); $i++) {
 & $python -m PyInstaller `
   --noconfirm `
   --clean `
-  --name "Programista" `
+  --name "programista" `
   --windowed `
   --onefile `
   --distpath $distPath `

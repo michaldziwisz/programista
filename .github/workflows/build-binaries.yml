@@ -45,14 +45,14 @@ jobs:
             python -m PyInstaller \
               --noconfirm \
               --clean \
-              --name "Programista" \
+              --name "programista" \
               --windowed \
               run_programista.py
           else
             python -m PyInstaller \
               --noconfirm \
               --clean \
-              --name "Programista" \
+              --name "programista" \
               --windowed \
               --onefile \
               run_programista.py
@@ -63,17 +63,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          cp "dist/Programista.exe" "out/Programista-${VERSION}-windows-x64.exe"
+          cp "dist/programista.exe" "out/programista.exe"
 
       - name: Package artifact (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           mkdir -p out
-          if [ -d "dist/Programista.app" ]; then
-            ditto -c -k --sequesterRsrc --keepParent "dist/Programista.app" "out/Programista-${VERSION}-macos.zip"
+          if [ -d "dist/programista.app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "dist/programista.app" "out/programista-macos.zip"
           else
-            ditto -c -k --sequesterRsrc --keepParent "dist/Programista" "out/Programista-${VERSION}-macos.zip"
+            ditto -c -k --sequesterRsrc --keepParent "dist/programista" "out/programista-macos.zip"
           fi
 
       - name: Upload to GitHub Release (tag)
