@@ -50,12 +50,29 @@ class ProviderPackService:
             radio=ReloadableScheduleProvider(fallback_radio),
             archive=ReloadableArchiveProvider(fallback_archive),
         )
+        self.last_load_errors: dict[ProviderKind, str] = {}
 
     def load_installed(self) -> None:
-        tv = self._load_schedule_kind("tv")
-        tv_access = self._load_schedule_kind("tv_accessibility")
-        radio = self._load_schedule_kind("radio")
-        archive = self._load_archive_kind()
+        self.last_load_errors = {}
+
+        def safe_schedule(kind: ProviderKind) -> ScheduleProvider | None:
+            try:
+                return self._load_schedule_kind(kind)
+            except Exception as e:  # noqa: BLE001
+                self.last_load_errors[kind] = str(e) or "Nieznany błąd."
+                return None
+
+        def safe_archive() -> ArchiveProvider | None:
+            try:
+                return self._load_archive_kind()
+            except Exception as e:  # noqa: BLE001
+                self.last_load_errors["archive"] = str(e) or "Nieznany błąd."
+                return None
+
+        tv = safe_schedule("tv")
+        tv_access = safe_schedule("tv_accessibility")
+        radio = safe_schedule("radio")
+        archive = safe_archive()
 
         if tv:
             self.runtime.tv.set_delegate(tv)
