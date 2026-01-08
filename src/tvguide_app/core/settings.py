@@ -14,6 +14,14 @@ class TvAccessibilityFilters:
     n: bool = True
 
 
+@dataclass(frozen=True)
+class SearchKindFilters:
+    tv: bool = True
+    radio: bool = True
+    tv_accessibility: bool = True
+    archive: bool = True
+
+
 class SettingsStore:
     def __init__(self, path: Path) -> None:
         self._path = path
@@ -37,6 +45,28 @@ class SettingsStore:
             self._data["tv_accessibility_filters"] = {"ad": bool(filters.ad), "jm": bool(filters.jm), "n": bool(filters.n)}
             self._save(self._data)
 
+    def get_search_kind_filters(self) -> SearchKindFilters:
+        with self._lock:
+            raw = self._data.get("search_kind_filters")
+            if not isinstance(raw, dict):
+                return SearchKindFilters()
+            return SearchKindFilters(
+                tv=bool(raw.get("tv", True)),
+                radio=bool(raw.get("radio", True)),
+                tv_accessibility=bool(raw.get("tv_accessibility", True)),
+                archive=bool(raw.get("archive", True)),
+            )
+
+    def set_search_kind_filters(self, filters: SearchKindFilters) -> None:
+        with self._lock:
+            self._data["search_kind_filters"] = {
+                "tv": bool(filters.tv),
+                "radio": bool(filters.radio),
+                "tv_accessibility": bool(filters.tv_accessibility),
+                "archive": bool(filters.archive),
+            }
+            self._save(self._data)
+
     def _load(self) -> dict[str, Any]:
         if not self._path.exists():
             return {}
@@ -54,4 +84,3 @@ class SettingsStore:
         tmp = self._path.with_suffix(self._path.suffix + ".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self._path)
-

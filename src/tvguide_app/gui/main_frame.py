@@ -18,7 +18,9 @@ from tvguide_app.core.providers.favorites import FavoritesProvider
 from tvguide_app.core.providers.fandom_archive import FandomArchiveProvider
 from tvguide_app.core.providers.polskieradio import PolskieRadioProvider
 from tvguide_app.core.providers.teleman import TelemanProvider
+from tvguide_app.core.search_index import SearchIndex
 from tvguide_app.core.settings import SettingsStore
+from tvguide_app.gui.search_tab import SearchTab
 from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
 
@@ -31,6 +33,8 @@ class MainFrame(wx.Frame):
         self._cache.prune_expired()
 
         self._http = HttpClient(self._cache, user_agent="programista/0.1 (+desktop)")
+        self._search_index = SearchIndex(cache_path.with_name("search.sqlite3"))
+        self._search_index.prune()
 
         self._providers = ProviderPackService(
             self._http,
@@ -59,6 +63,18 @@ class MainFrame(wx.Frame):
         self._build_ui()
         self._install_tab_shortcuts()
         self._auto_update_providers()
+        self.Bind(wx.EVT_CLOSE, self._on_close)
+
+    def _on_close(self, evt: wx.CloseEvent) -> None:
+        try:
+            self._cache.close()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            self._search_index.close()
+        except Exception:  # noqa: BLE001
+            pass
+        evt.Skip()
 
     def _install_tab_shortcuts(self) -> None:
         if not hasattr(self, "_notebook"):
@@ -164,12 +180,14 @@ class MainFrame(wx.Frame):
             self._status_bar,
             favorites_store=self._favorites_store,
             on_favorites_changed=self._on_favorites_changed,
+            search_index=self._search_index,
         )
         self._tv_accessibility_tab = TvAccessibilityTab(
             self._notebook,
             self._providers.runtime.tv_accessibility,
             self._status_bar,
             settings_store=self._settings_store,
+            search_index=self._search_index,
         )
         self._radio_tab = RadioTab(
             self._notebook,
@@ -177,6 +195,7 @@ class MainFrame(wx.Frame):
             self._status_bar,
             favorites_store=self._favorites_store,
             on_favorites_changed=self._on_favorites_changed,
+            search_index=self._search_index,
         )
         self._favorites_tab = FavoritesTab(
             self._notebook,
@@ -184,13 +203,26 @@ class MainFrame(wx.Frame):
             self._status_bar,
             favorites_store=self._favorites_store,
             on_favorites_changed=self._on_favorites_changed,
+            search_index=self._search_index,
         )
-        self._archive_tab = ArchiveTab(self._notebook, self._providers.runtime.archive, self._status_bar)
+        self._search_tab = SearchTab(
+            self._notebook,
+            self._status_bar,
+            settings_store=self._settings_store,
+            search_index=self._search_index,
+        )
+        self._archive_tab = ArchiveTab(
+            self._notebook,
+            self._providers.runtime.archive,
+            self._status_bar,
+            search_index=self._search_index,
+        )
 
         self._notebook.AddPage(self._tv_tab, "Telewizja")
         self._notebook.AddPage(self._tv_accessibility_tab, "Programy TV z udogodnieniami")
         self._notebook.AddPage(self._radio_tab, "Radio")
         self._notebook.AddPage(self._favorites_tab, "Ulubione")
+        self._notebook.AddPage(self._search_tab, "Wyszukiwanie")
         self._notebook.AddPage(self._archive_tab, "Programy archiwalne")
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
@@ -228,6 +260,7 @@ class MainFrame(wx.Frame):
 
     def _on_clear_cache(self, _evt: wx.CommandEvent) -> None:
         self._cache.clear()
+        self._search_index.clear()
         self._status_bar.SetStatusText("Wyczyszczono cache.")
         tab = self._active_tab()
         if hasattr(tab, "refresh_all"):

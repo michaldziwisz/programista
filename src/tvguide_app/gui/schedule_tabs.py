@@ -12,6 +12,7 @@ from tvguide_app.core.favorites import FavoriteKind, FavoriteRef, FavoritesStore
 from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature, ScheduleItem, Source
 from tvguide_app.core.providers.archive_base import ArchiveProvider
 from tvguide_app.core.providers.base import ScheduleProvider
+from tvguide_app.core.search_index import SearchIndex, SearchKind
 from tvguide_app.core.settings import SettingsStore, TvAccessibilityFilters
 from tvguide_app.core.util import POLISH_MONTHS_NOMINATIVE
 
@@ -38,10 +39,20 @@ class NavRow:
 
 
 class BaseScheduleTab(wx.Panel):
-    def __init__(self, parent: wx.Window, provider: ScheduleProvider, status_bar: wx.StatusBar) -> None:
+    def __init__(
+        self,
+        parent: wx.Window,
+        provider: ScheduleProvider,
+        status_bar: wx.StatusBar,
+        *,
+        search_index: SearchIndex | None = None,
+        search_kind: SearchKind | None = None,
+    ) -> None:
         super().__init__(parent, style=wx.TAB_TRAVERSAL)
         self._provider = provider
         self._status_bar = status_bar
+        self._search_index = search_index
+        self._search_kind = search_kind
         self._view_mode: ViewMode = "by_source"
         self._request_token = 0
         self._show_end_time = True
@@ -512,6 +523,11 @@ class BaseScheduleTab(wx.Panel):
             if token != self._request_token:
                 return
             self._show_schedule(items)
+            if self._search_index and self._search_kind:
+                try:
+                    self._search_index.add_items(self._search_kind, items)
+                except Exception:  # noqa: BLE001
+                    pass
             self._status_bar.SetStatusText("Gotowe.")
 
         self._run_in_thread(work, on_success=on_success, on_error=self._on_error)
@@ -584,11 +600,12 @@ class TvTab(BaseScheduleTab):
         *,
         favorites_store: FavoritesStore,
         on_favorites_changed: Callable[[], None],
+        search_index: SearchIndex | None = None,
     ) -> None:
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "tv"
-        super().__init__(parent, provider, status_bar)
+        super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="tv")
 
     def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
         self._show_end_time = False
@@ -637,6 +654,7 @@ class TvAccessibilityTab(BaseScheduleTab):
         status_bar: wx.StatusBar,
         *,
         settings_store: SettingsStore,
+        search_index: SearchIndex | None = None,
     ) -> None:
         self._settings_store = settings_store
         persisted = self._settings_store.get_tv_accessibility_filters()
@@ -647,7 +665,7 @@ class TvAccessibilityTab(BaseScheduleTab):
         self._a11y_index_token = 0
         self._a11y_index_ready = False
         self._a11y_pair_features: dict[str, frozenset[AccessibilityFeature] | None] = {}
-        super().__init__(parent, provider, status_bar)
+        super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="tv_accessibility")
 
     def _create_header_controls(self, header: wx.BoxSizer) -> None:
         header.AddStretchSpacer(1)
@@ -912,11 +930,12 @@ class RadioTab(BaseScheduleTab):
         *,
         favorites_store: FavoritesStore,
         on_favorites_changed: Callable[[], None],
+        search_index: SearchIndex | None = None,
     ) -> None:
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "radio"
-        super().__init__(parent, provider, status_bar)
+        super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="radio")
 
     def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
         self._show_end_time = False
@@ -973,10 +992,11 @@ class FavoritesTab(BaseScheduleTab):
         *,
         favorites_store: FavoritesStore,
         on_favorites_changed: Callable[[], None],
+        search_index: SearchIndex | None = None,
     ) -> None:
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
-        super().__init__(parent, provider, status_bar)
+        super().__init__(parent, provider, status_bar, search_index=search_index, search_kind=None)
 
     def _create_header_controls(self, header: wx.BoxSizer) -> None:
         header.AddStretchSpacer(1)
@@ -1060,10 +1080,13 @@ class ArchiveTab(wx.Panel):
         parent: wx.Window,
         provider: ArchiveProvider,
         status_bar: wx.StatusBar,
+        *,
+        search_index: SearchIndex | None = None,
     ) -> None:
         super().__init__(parent, style=wx.TAB_TRAVERSAL)
         self._provider = provider
         self._status_bar = status_bar
+        self._search_index = search_index
         self._request_token = 0
         self._nav_rows: list[ArchiveNavRow] = []
         self._nav_index_by_key: dict[str, int] = {}
@@ -1496,6 +1519,11 @@ class ArchiveTab(wx.Panel):
             if token != self._request_token:
                 return
             self._show_schedule(items)
+            if self._search_index:
+                try:
+                    self._search_index.add_items("archive", items)
+                except Exception:  # noqa: BLE001
+                    pass
             self._status_bar.SetStatusText("Gotowe.")
 
         self._run_in_thread(work, on_success=on_success, on_error=self._on_error)
