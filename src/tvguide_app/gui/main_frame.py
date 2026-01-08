@@ -248,7 +248,9 @@ class MainFrame(wx.Frame):
     def _auto_update_providers(self) -> None:
         self._status_bar.SetStatusText("Sprawdzanie aktualizacji dostawców…")
         self._run_in_thread(
-            lambda: self._providers.update_and_reload(force_check=False),
+            # On startup, always check upstream (not just the local cache),
+            # so provider fixes can land without requiring a manual Ctrl+U.
+            lambda: self._providers.update_and_reload(force_check=True),
             on_success=self._on_providers_updated,
             on_error=self._on_providers_update_error,
         )
