@@ -87,6 +87,7 @@ class BaseScheduleTab(wx.Panel):
         self._nav.Bind(wx.EVT_LISTBOX_DCLICK, self._on_nav_activate)
         self._nav.Bind(wx.EVT_KEY_DOWN, self._on_nav_key_down)
         self._nav.Bind(wx.EVT_SET_FOCUS, self._on_nav_focus)
+        self._nav.Bind(wx.EVT_CONTEXT_MENU, self._on_nav_context_menu)
         left_sizer.Add(self._nav, 1, wx.EXPAND)
         left.SetSizer(left_sizer)
 
@@ -136,6 +137,55 @@ class BaseScheduleTab(wx.Panel):
 
     def _create_header_controls(self, _header: wx.BoxSizer) -> None:
         return
+
+    def _create_nav_context_menu(self) -> wx.Menu | None:
+        return None
+
+    def _on_nav_context_menu(self, evt: wx.ContextMenuEvent) -> None:
+        if not hasattr(self, "_nav"):
+            return
+
+        pos = evt.GetPosition()
+        if pos != wx.DefaultPosition:
+            self._select_nav_item_at_screen_pos(pos)
+            popup_pos = self._nav.ScreenToClient(pos)
+        else:
+            popup_pos = wx.Point(10, 10)
+
+        menu = self._create_nav_context_menu()
+        if not menu:
+            return
+
+        try:
+            self._nav.PopupMenu(menu, popup_pos)
+        finally:
+            menu.Destroy()
+
+    def _select_nav_item_at_screen_pos(self, screen_pos: wx.Point) -> None:
+        if not hasattr(self, "_nav"):
+            return
+
+        client_pos = self._nav.ScreenToClient(screen_pos)
+        hit = None
+        if hasattr(self._nav, "HitTest"):
+            try:
+                hit = self._nav.HitTest(client_pos)
+            except Exception:  # noqa: BLE001
+                hit = None
+        if isinstance(hit, tuple):
+            idx = hit[0]
+        else:
+            idx = hit
+
+        if not isinstance(idx, int) or idx == wx.NOT_FOUND:
+            return
+
+        if idx != self._nav.GetSelection():
+            self._suppress_nav_event = True
+            self._nav.SetSelection(idx)
+            self._nav.EnsureVisible(idx)
+            self._suppress_nav_event = False
+            self._after_nav_update()
 
     def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
         self._show_end_time = True
@@ -537,63 +587,42 @@ class TvTab(BaseScheduleTab):
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "tv"
-        self._suppress_favorite_event = False
         super().__init__(parent, provider, status_bar)
-
-    def _create_header_controls(self, header: wx.BoxSizer) -> None:
-        header.AddStretchSpacer(1)
-        self._favorite_checkbox = wx.CheckBox(self, label="Ulubione")
-        self._favorite_checkbox.Disable()
-        self._favorite_checkbox.Bind(wx.EVT_CHECKBOX, self._on_favorite_checkbox)
-        header.Add(self._favorite_checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
 
     def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
         self._show_end_time = False
         list_ctrl.InsertColumn(0, "Od", width=70)
         list_ctrl.InsertColumn(1, "Tytuł", width=520)
 
-    def _after_nav_update(self) -> None:
-        self.sync_favorites()
-
-    def _on_nav_selection(self, evt: wx.CommandEvent) -> None:
-        super()._on_nav_selection(evt)
-        self.sync_favorites()
-
     def sync_favorites(self) -> None:
-        if not hasattr(self, "_favorite_checkbox"):
-            return
-        src = self._get_selected_source()
-        self._suppress_favorite_event = True
-        try:
-            if not src:
-                self._favorite_checkbox.SetValue(False)
-                self._favorite_checkbox.Disable()
-                return
+        # The tab used to expose a checkbox; favorites are now managed via context menu.
+        return
 
-            self._favorite_checkbox.Enable()
-            ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
-            self._favorite_checkbox.SetValue(self._favorites_store.is_favorite(ref))
-        finally:
-            self._suppress_favorite_event = False
-
-    def _on_favorite_checkbox(self, evt: wx.CommandEvent) -> None:
-        if self._suppress_favorite_event:
-            return
+    def _create_nav_context_menu(self) -> wx.Menu | None:
         src = self._get_selected_source()
         if not src:
-            return
-
+            return None
         ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
-        checked = bool(evt.IsChecked())
+        is_fav = self._favorites_store.is_favorite(ref)
 
-        if checked:
-            changed = self._favorites_store.add_source(self._favorite_kind, src)
-            if changed:
-                self._status_bar.SetStatusText(f"Dodano do ulubionych: {src.name}")
-        else:
+        menu = wx.Menu()
+        label = "Usuń z ulubionych" if is_fav else "Dodaj do ulubionych"
+        item_id = wx.NewIdRef()
+        menu.Append(item_id, label)
+        self.Bind(wx.EVT_MENU, lambda _evt, s=src, fav=is_fav: self._toggle_favorite(s, fav), id=item_id)
+        return menu
+
+    def _toggle_favorite(self, src: Source, is_fav: bool) -> None:
+        ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
+
+        if is_fav:
             changed = self._favorites_store.remove(ref)
             if changed:
                 self._status_bar.SetStatusText(f"Usunięto z ulubionych: {src.name}")
+        else:
+            changed = self._favorites_store.add_source(self._favorite_kind, src)
+            if changed:
+                self._status_bar.SetStatusText(f"Dodano do ulubionych: {src.name}")
 
         if changed:
             self._on_favorites_changed()
@@ -844,15 +873,7 @@ class RadioTab(BaseScheduleTab):
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "radio"
-        self._suppress_favorite_event = False
         super().__init__(parent, provider, status_bar)
-
-    def _create_header_controls(self, header: wx.BoxSizer) -> None:
-        header.AddStretchSpacer(1)
-        self._favorite_checkbox = wx.CheckBox(self, label="Ulubione")
-        self._favorite_checkbox.Disable()
-        self._favorite_checkbox.Bind(wx.EVT_CHECKBOX, self._on_favorite_checkbox)
-        header.Add(self._favorite_checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
 
     def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
         self._show_end_time = False
@@ -865,48 +886,36 @@ class RadioTab(BaseScheduleTab):
         filtered = [d for d in days if d >= today]
         super()._on_loaded_sources_days((sources, filtered or [today]))
 
-    def _after_nav_update(self) -> None:
-        self.sync_favorites()
-
-    def _on_nav_selection(self, evt: wx.CommandEvent) -> None:
-        super()._on_nav_selection(evt)
-        self.sync_favorites()
-
     def sync_favorites(self) -> None:
-        if not hasattr(self, "_favorite_checkbox"):
-            return
-        src = self._get_selected_source()
-        self._suppress_favorite_event = True
-        try:
-            if not src:
-                self._favorite_checkbox.SetValue(False)
-                self._favorite_checkbox.Disable()
-                return
+        # The tab used to expose a checkbox; favorites are now managed via context menu.
+        return
 
-            self._favorite_checkbox.Enable()
-            ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
-            self._favorite_checkbox.SetValue(self._favorites_store.is_favorite(ref))
-        finally:
-            self._suppress_favorite_event = False
-
-    def _on_favorite_checkbox(self, evt: wx.CommandEvent) -> None:
-        if self._suppress_favorite_event:
-            return
+    def _create_nav_context_menu(self) -> wx.Menu | None:
         src = self._get_selected_source()
         if not src:
-            return
+            return None
 
         ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
-        checked = bool(evt.IsChecked())
+        is_fav = self._favorites_store.is_favorite(ref)
 
-        if checked:
-            changed = self._favorites_store.add_source(self._favorite_kind, src)
-            if changed:
-                self._status_bar.SetStatusText(f"Dodano do ulubionych: {src.name}")
-        else:
+        menu = wx.Menu()
+        label = "Usuń z ulubionych" if is_fav else "Dodaj do ulubionych"
+        item_id = wx.NewIdRef()
+        menu.Append(item_id, label)
+        self.Bind(wx.EVT_MENU, lambda _evt, s=src, fav=is_fav: self._toggle_favorite(s, fav), id=item_id)
+        return menu
+
+    def _toggle_favorite(self, src: Source, is_fav: bool) -> None:
+        ref = FavoriteRef(kind=self._favorite_kind, provider_id=str(src.provider_id), source_id=str(src.id))
+
+        if is_fav:
             changed = self._favorites_store.remove(ref)
             if changed:
                 self._status_bar.SetStatusText(f"Usunięto z ulubionych: {src.name}")
+        else:
+            changed = self._favorites_store.add_source(self._favorite_kind, src)
+            if changed:
+                self._status_bar.SetStatusText(f"Dodano do ulubionych: {src.name}")
 
         if changed:
             self._on_favorites_changed()
