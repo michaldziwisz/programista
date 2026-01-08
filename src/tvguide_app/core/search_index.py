@@ -45,12 +45,30 @@ class SearchIndex:
             self._conn.execute("DELETE FROM search_items")
             self._conn.commit()
 
-    def prune(self, *, keep_seconds: int = 90 * 24 * 3600) -> int:
-        cutoff = int(time_module.time()) - int(keep_seconds)
+    def prune(
+        self,
+        *,
+        keep_seconds: int = 90 * 24 * 3600,
+        keep_archive_seconds: int | None = None,
+    ) -> int:
+        now = int(time_module.time())
+        cutoff = now - int(keep_seconds)
+        pruned = 0
         with self._lock:
-            cur = self._conn.execute("DELETE FROM search_items WHERE indexed_at < ?", (cutoff,))
+            cur = self._conn.execute(
+                "DELETE FROM search_items WHERE kind <> 'archive' AND indexed_at < ?",
+                (cutoff,),
+            )
+            pruned += int(cur.rowcount or 0)
+            if keep_archive_seconds is not None:
+                cutoff_archive = now - int(keep_archive_seconds)
+                cur = self._conn.execute(
+                    "DELETE FROM search_items WHERE kind = 'archive' AND indexed_at < ?",
+                    (cutoff_archive,),
+                )
+                pruned += int(cur.rowcount or 0)
             self._conn.commit()
-            return cur.rowcount
+        return pruned
 
     def add_items(self, kind: SearchKind, items: list[ScheduleItem]) -> None:
         now = int(time_module.time())

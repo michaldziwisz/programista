@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import wx
 
 from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature
+from tvguide_app.core.prefetch import PrefetchStage, PrefetchUpdate
 from tvguide_app.core.search_index import SearchIndex, SearchKind, SearchResult
 from tvguide_app.core.settings import SearchKindFilters, SettingsStore
 
@@ -13,6 +15,13 @@ SEARCH_KIND_LABELS: dict[SearchKind, str] = {
     "tv": "Telewizja",
     "radio": "Radio",
     "tv_accessibility": "TV z udogodnieniami",
+    "archive": "Archiwum",
+}
+
+PREFETCH_STAGE_LABELS: dict[PrefetchStage, str] = {
+    "tv": "Telewizja",
+    "tv_accessibility": "TV z udogodnieniami",
+    "radio": "Radio",
     "archive": "Archiwum",
 }
 
@@ -45,11 +54,15 @@ class SearchTab(wx.Panel):
         *,
         settings_store: SettingsStore,
         search_index: SearchIndex,
+        on_start_full_sync: Callable[[], None] | None = None,
+        on_stop_full_sync: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, style=wx.TAB_TRAVERSAL)
         self._status_bar = status_bar
         self._settings_store = settings_store
         self._index = search_index
+        self._on_start_full_sync = on_start_full_sync
+        self._on_stop_full_sync = on_stop_full_sync
         self._results: list[SearchResult] = []
 
         self._load_persisted_filters()
@@ -112,9 +125,30 @@ class SearchTab(wx.Panel):
 
         hint = wx.StaticText(
             self,
-            label="Wyszukiwanie działa w pobranych ramówkach (pamięć podręczna).",
+            label="Wyszukiwanie działa w pamięci podręcznej (pobranych ramówkach).",
         )
         root.Add(hint, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+
+        sync_box = wx.StaticBoxSizer(wx.StaticBox(self, label="Pełna synchronizacja cache"), wx.VERTICAL)
+        self._prefetch_status = wx.StaticText(self, label="Nie uruchomiono.")
+        sync_box.Add(self._prefetch_status, 0, wx.ALL, 4)
+
+        self._prefetch_gauge = wx.Gauge(self, range=100)
+        sync_box.Add(self._prefetch_gauge, 0, wx.EXPAND | wx.ALL, 4)
+
+        sync_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        self._prefetch_start_btn = wx.Button(self, label="Pobierz wszystko")
+        self._prefetch_stop_btn = wx.Button(self, label="Zatrzymaj")
+        self._prefetch_stop_btn.Disable()
+        self._prefetch_start_btn.Bind(wx.EVT_BUTTON, self._on_prefetch_start)
+        self._prefetch_stop_btn.Bind(wx.EVT_BUTTON, self._on_prefetch_stop)
+        if not callable(self._on_start_full_sync):
+            self._prefetch_start_btn.Disable()
+        sync_buttons.Add(self._prefetch_start_btn, 0, wx.RIGHT, 8)
+        sync_buttons.Add(self._prefetch_stop_btn, 0)
+        sync_box.Add(sync_buttons, 0, wx.ALL, 4)
+
+        root.Add(sync_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         self._list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.TAB_TRAVERSAL)
         self._list.InsertColumn(0, "Data", width=110)
@@ -127,6 +161,41 @@ class SearchTab(wx.Panel):
         root.Add(self._list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         self.SetSizer(root)
+
+    def update_prefetch(self, update: PrefetchUpdate, *, running: bool) -> None:
+        stage = PREFETCH_STAGE_LABELS.get(update.stage, update.stage)
+        if update.total:
+            pct = int((update.done / update.total) * 100) if update.total else 0
+            pct = max(0, min(100, pct))
+            self._prefetch_gauge.SetValue(pct)
+            self._prefetch_status.SetLabel(
+                f"{stage}: {update.done}/{update.total} • błędy: {update.errors} • {update.message}"
+            )
+        else:
+            if running:
+                self._prefetch_gauge.Pulse()
+            else:
+                self._prefetch_gauge.SetValue(0)
+            self._prefetch_status.SetLabel(f"{stage}: błędy: {update.errors} • {update.message}")
+
+        self._prefetch_start_btn.Enable(not running)
+        self._prefetch_stop_btn.Enable(running)
+
+    def set_prefetch_running(self, running: bool) -> None:
+        if not callable(self._on_start_full_sync):
+            self._prefetch_start_btn.Enable(False)
+            self._prefetch_stop_btn.Enable(False)
+            return
+        self._prefetch_start_btn.Enable(not running)
+        self._prefetch_stop_btn.Enable(running)
+
+    def _on_prefetch_start(self, _evt: wx.CommandEvent) -> None:
+        if callable(self._on_start_full_sync):
+            self._on_start_full_sync()
+
+    def _on_prefetch_stop(self, _evt: wx.CommandEvent) -> None:
+        if callable(self._on_stop_full_sync):
+            self._on_stop_full_sync()
 
     def _on_filter_changed(self, _evt: wx.CommandEvent) -> None:
         self._filters = _UiFilters(
