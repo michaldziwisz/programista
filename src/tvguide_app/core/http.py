@@ -20,14 +20,20 @@ class HttpResponse:
 class HttpClient:
     def __init__(self, cache: SqliteCache, *, user_agent: str) -> None:
         self._cache = cache
-        self._session = requests.Session()
-        self._lock = threading.Lock()
-        self._session.headers.update(
-            {
-                "User-Agent": user_agent,
-                "Accept-Language": "pl,en;q=0.8",
-            }
-        )
+        self._local = threading.local()
+        self._session_headers = {
+            "User-Agent": user_agent,
+            "Accept-Language": "pl,en;q=0.8",
+        }
+
+    def _get_session(self) -> requests.Session:
+        # requests.Session is not guaranteed to be thread-safe, so keep one session per thread.
+        sess = getattr(self._local, "session", None)
+        if sess is None:
+            sess = requests.Session()
+            sess.headers.update(self._session_headers)
+            self._local.session = sess
+        return sess
 
     def get_text(
         self,
@@ -43,8 +49,7 @@ class HttpClient:
             if cached is not None:
                 return cached
 
-        with self._lock:
-            resp = self._session.get(url, timeout=timeout_seconds)
+        resp = self._get_session().get(url, timeout=timeout_seconds)
         resp.raise_for_status()
         _ensure_reasonable_text_encoding(resp)
         text = resp.text
@@ -68,8 +73,7 @@ class HttpClient:
             if cached is not None:
                 return cached
 
-        with self._lock:
-            resp = self._session.post(url, data=data, timeout=timeout_seconds)
+        resp = self._get_session().post(url, data=data, timeout=timeout_seconds)
         resp.raise_for_status()
         _ensure_reasonable_text_encoding(resp)
         text = resp.text

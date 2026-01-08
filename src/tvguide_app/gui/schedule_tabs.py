@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import threading
 from dataclasses import dataclass
 from datetime import date
@@ -789,10 +790,52 @@ class TvAccessibilityTab(BaseScheduleTab):
         sources: list[Source],
         days: list[date],
     ) -> dict[str, frozenset[AccessibilityFeature] | None]:
+        sources_by_provider: dict[str, list[Source]] = {}
+        for src in sources:
+            sources_by_provider.setdefault(str(src.provider_id), []).append(src)
+
+        list_days_for_provider = getattr(self._provider, "list_days_for_provider", None)
+        allowed_days_by_provider: dict[str, set[date] | None] = {}
+        for pid in sources_by_provider:
+            if callable(list_days_for_provider):
+                try:
+                    allowed_days_by_provider[pid] = set(list_days_for_provider(pid, force_refresh=False))
+                except Exception:  # noqa: BLE001
+                    allowed_days_by_provider[pid] = None
+            else:
+                allowed_days_by_provider[pid] = None
+
+        # Warm up provider caches concurrently (the expensive part is usually fetching/parsing per day).
+        def warm_up(sample_source: Source, day: date) -> None:
+            try:
+                self._provider.get_schedule(sample_source, day, force_refresh=False)
+            except Exception:  # noqa: BLE001
+                return
+
+        warm_tasks: list[tuple[Source, date]] = []
+        for pid, srcs in sources_by_provider.items():
+            if not srcs:
+                continue
+            sample = srcs[0]
+            allowed = allowed_days_by_provider.get(pid)
+            warm_days = sorted(allowed) if allowed else list(days)
+            for d in warm_days:
+                warm_tasks.append((sample, d))
+
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            futures = [ex.submit(warm_up, src, d) for src, d in warm_tasks]
+            for f in futures:
+                f.result()
+
         out: dict[str, frozenset[AccessibilityFeature] | None] = {}
         for src in sources:
+            pid = str(src.provider_id)
+            allowed = allowed_days_by_provider.get(pid)
             for d in days:
                 key = self._pair_key(src, d)
+                if allowed is not None and d not in allowed:
+                    out[key] = frozenset()
+                    continue
                 try:
                     items = self._provider.get_schedule(src, d, force_refresh=False)
                 except Exception:  # noqa: BLE001
