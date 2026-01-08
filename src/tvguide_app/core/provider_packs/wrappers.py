@@ -40,6 +40,7 @@ class CompositeScheduleProvider(ScheduleProvider):
     def __init__(self, providers: list[ScheduleProvider]) -> None:
         self._providers = list(providers)
         self._by_id = {p.provider_id: p for p in self._providers}
+        self._last_days_by_provider_id: dict[str, list[date]] = {}
 
     @property
     def provider_id(self) -> str:
@@ -58,9 +59,26 @@ class CompositeScheduleProvider(ScheduleProvider):
 
     def list_days(self, *, force_refresh: bool = False) -> list[date]:
         days: set[date] = set()
+        by_provider: dict[str, list[date]] = {}
         for p in self._providers:
-            days.update(p.list_days(force_refresh=force_refresh))
+            p_days = p.list_days(force_refresh=force_refresh)
+            by_provider[p.provider_id] = p_days
+            days.update(p_days)
+        self._last_days_by_provider_id = by_provider
         return sorted(days)
+
+    def list_days_for_provider(self, provider_id: str, *, force_refresh: bool = False) -> list[date]:
+        if not force_refresh and provider_id in self._last_days_by_provider_id:
+            return self._last_days_by_provider_id.get(provider_id, [])
+
+        p = self._by_id.get(provider_id)
+        if not p:
+            return []
+
+        days = p.list_days(force_refresh=force_refresh)
+        if not force_refresh:
+            self._last_days_by_provider_id[provider_id] = days
+        return days
 
     def get_schedule(
         self,
@@ -107,6 +125,15 @@ class ReloadableScheduleProvider(ScheduleProvider):
 
     def list_days(self, *, force_refresh: bool = False) -> list[date]:
         return self._get().list_days(force_refresh=force_refresh)
+
+    def list_days_for_provider(self, provider_id: str, *, force_refresh: bool = False) -> list[date]:
+        delegate = self._get()
+        method = getattr(delegate, "list_days_for_provider", None)
+        if callable(method):
+            return method(provider_id, force_refresh=force_refresh)
+        if provider_id == delegate.provider_id:
+            return delegate.list_days(force_refresh=force_refresh)
+        return []
 
     def get_schedule(
         self,
@@ -250,4 +277,3 @@ class ReloadableArchiveProvider(ArchiveProvider):
         force_refresh: bool = False,
     ) -> list[ScheduleItem]:
         return self._get().get_schedule(source, day, force_refresh=force_refresh)
-

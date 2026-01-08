@@ -47,6 +47,7 @@ class BaseScheduleTab(wx.Panel):
 
         self._sources: list[Source] = []
         self._days: list[date] = []
+        self._days_by_provider_id: dict[str, set[date]] = {}
         self._nav_rows: list[NavRow] = []
         self._nav_index_by_key: dict[str, int] = {}
         self._expanded_by_source: set[str] = set()
@@ -157,8 +158,24 @@ class BaseScheduleTab(wx.Panel):
         sources, days = result
         self._sources = sources
         self._days = days
+        self._days_by_provider_id = self._build_days_by_provider_id()
         self._rebuild_nav()
         self._status_bar.SetStatusText("Gotowe.")
+
+    def _build_days_by_provider_id(self) -> dict[str, set[date]]:
+        method = getattr(self._provider, "list_days_for_provider", None)
+        if not callable(method):
+            return {}
+
+        provider_ids = sorted({str(src.provider_id) for src in self._sources})
+        out: dict[str, set[date]] = {}
+        for pid in provider_ids:
+            try:
+                days = method(pid, force_refresh=False)
+            except Exception:  # noqa: BLE001
+                continue
+            out[pid] = set(days)
+        return out
 
     def _source_key(self, source: Source) -> str:
         return f"src:{source.provider_id}:{source.id}"
@@ -180,11 +197,27 @@ class BaseScheduleTab(wx.Panel):
     def _nav_root_days(self) -> list[date]:
         return self._days
 
-    def _nav_child_days_for_source(self, _source: Source) -> list[date]:
-        return self._days
+    def _nav_child_days_for_source(self, source: Source) -> list[date]:
+        pid = str(source.provider_id)
+        if pid not in self._days_by_provider_id:
+            return self._days
 
-    def _nav_child_sources_for_day(self, _day: date) -> list[Source]:
-        return self._sources
+        allowed = self._days_by_provider_id[pid]
+        return [d for d in self._days if d in allowed]
+
+    def _nav_child_sources_for_day(self, day: date) -> list[Source]:
+        if not self._days_by_provider_id:
+            return self._sources
+
+        out: list[Source] = []
+        for src in self._sources:
+            pid = str(src.provider_id)
+            if pid not in self._days_by_provider_id:
+                out.append(src)
+                continue
+            if day in self._days_by_provider_id[pid]:
+                out.append(src)
+        return out
 
     def _rebuild_nav(self) -> None:
         selected_key = self._get_selected_nav_key()
