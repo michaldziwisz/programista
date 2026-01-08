@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 import time
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -77,11 +78,25 @@ class SqliteCache:
                 self._conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                 self._conn.commit()
                 return None
+            if isinstance(value, (bytes, bytearray, memoryview)):
+                raw = bytes(value)
+                try:
+                    raw = zlib.decompress(raw)
+                except Exception:  # noqa: BLE001
+                    pass
+                return raw.decode("utf-8", errors="replace")
             return str(value)
 
     def set_text(self, key: str, value: str, *, ttl_seconds: int) -> None:
         now = int(time.time())
         expires_at = now + int(ttl_seconds)
+        payload: str | bytes
+        # Large HTML/JSON payloads can be several MB (e.g. TVP), making SQLite writes slow.
+        # Compress them to keep the UI responsive.
+        if len(value) >= 200_000:
+            payload = zlib.compress(value.encode("utf-8"), level=6)
+        else:
+            payload = value
         with self._lock:
             self._conn.execute(
                 """
@@ -92,7 +107,7 @@ class SqliteCache:
                   fetched_at=excluded.fetched_at,
                   expires_at=excluded.expires_at
                 """,
-                (key, value, now, expires_at),
+                (key, payload, now, expires_at),
             )
             self._conn.commit()
 
