@@ -107,12 +107,19 @@ class HubClient:
 
         headers = {API_KEY_HEADER: api_key}
 
-        resp = self._session.post(
-            f"{self._base_url}/search",
-            json=payload,
-            headers=headers,
-            timeout=15.0,
-        )
+        try:
+            resp = self._session.post(
+                f"{self._base_url}/search",
+                json=payload,
+                headers=headers,
+                timeout=15.0,
+            )
+        except requests.exceptions.Timeout as e:
+            raise RuntimeError("Przekroczono czas oczekiwania na serwer wyszukiwania.") from e
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError("Nie udało się połączyć z serwerem wyszukiwania.") from e
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError("Błąd połączenia z serwerem wyszukiwania.") from e
         if resp.status_code == 401:
             # Key could have been revoked/cleared server-side; re-register once.
             self._settings.clear_hub_api_key()
@@ -120,12 +127,19 @@ class HubClient:
             if not api_key:
                 resp.raise_for_status()
             headers = {API_KEY_HEADER: api_key}
-            resp = self._session.post(
-                f"{self._base_url}/search",
-                json=payload,
-                headers=headers,
-                timeout=15.0,
-            )
+            try:
+                resp = self._session.post(
+                    f"{self._base_url}/search",
+                    json=payload,
+                    headers=headers,
+                    timeout=15.0,
+                )
+            except requests.exceptions.Timeout as e:
+                raise RuntimeError("Przekroczono czas oczekiwania na serwer wyszukiwania.") from e
+            except requests.exceptions.ConnectionError as e:
+                raise RuntimeError("Nie udało się połączyć z serwerem wyszukiwania.") from e
+            except requests.exceptions.RequestException as e:
+                raise RuntimeError("Błąd połączenia z serwerem wyszukiwania.") from e
 
         resp.raise_for_status()
         data = resp.json()

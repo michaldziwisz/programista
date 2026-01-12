@@ -313,23 +313,27 @@ class SearchTab(BaseScheduleTab):
 
         header.Add(panel, 1, wx.EXPAND)
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Tytuł", width=420)
-        list_ctrl.InsertColumn(2, "Typ", width=170)
-        list_ctrl.InsertColumn(3, "Udogodnienia", width=240)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=420)
+        self._add_list_column(list_ctrl, "Typ", width=170)
+        self._add_list_column(list_ctrl, "Udogodnienia", width=240)
 
     def _show_schedule(self, items: list[ScheduleItem]) -> None:
         self._items = items
         self._list.DeleteAllItems()
-        for idx, it in enumerate(items):
+        for it in items:
             start = it.start_time.strftime("%H:%M") if it.start_time else ""
-            row = self._list.InsertItem(idx, start)
-            self._list.SetItem(row, 1, it.title)
             kind = self._provider.kind_for_provider_id(str(it.provider_id))
-            self._list.SetItem(row, 2, SEARCH_KIND_LABELS.get(kind, str(kind or "")))
-            self._list.SetItem(row, 3, _format_accessibility(it.accessibility))
+            self._append_list_row(
+                [
+                    start,
+                    it.title,
+                    SEARCH_KIND_LABELS.get(kind, str(kind or "")),
+                    _format_accessibility(it.accessibility),
+                ]
+            )
 
     def _nav_child_days_for_source(self, source: Source) -> list[date]:
         return self._provider.list_days_for_source(source)

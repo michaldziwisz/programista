@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import sys
 import threading
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Literal
 
 import wx
+import wx.dataview as dv
 
 from tvguide_app.core.favorites import FavoriteKind, FavoriteRef, FavoritesStore, decode_favorite_source_id
 from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature, ScheduleItem, Source
@@ -111,9 +113,19 @@ class BaseScheduleTab(wx.Panel):
         mid_splitter.SplitHorizontally(list_panel, details_panel, 320)
 
         list_sizer = wx.BoxSizer(wx.VERTICAL)
-        self._list = wx.ListCtrl(list_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        list_sizer.Add(wx.StaticText(list_panel, label="Programy:"), 0, wx.BOTTOM, 4)
+        self._list_is_dataview = sys.platform == "darwin"
+        if self._list_is_dataview:
+            self._list = dv.DataViewListCtrl(
+                list_panel,
+                style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_VERT_RULES,
+            )
+            self._list.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_item_selected)
+        else:
+            self._list = wx.ListCtrl(list_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+            self._list.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_item_selected)
+        self._list.SetName("Programy")
         self._init_list_columns(self._list)
-        self._list.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_item_selected)
         list_sizer.Add(self._list, 1, wx.EXPAND)
         list_panel.SetSizer(list_sizer)
 
@@ -149,6 +161,20 @@ class BaseScheduleTab(wx.Panel):
 
     def _create_header_controls(self, _header: wx.BoxSizer) -> None:
         return
+
+    def _add_list_column(self, list_ctrl: wx.Window, label: str, *, width: int) -> None:
+        if getattr(self, "_list_is_dataview", False):
+            list_ctrl.AppendTextColumn(label, width=width, mode=dv.DATAVIEW_CELL_INERT)  # type: ignore[attr-defined]
+            return
+        list_ctrl.InsertColumn(list_ctrl.GetColumnCount(), label, width=width)  # type: ignore[attr-defined]
+
+    def _append_list_row(self, values: list[str]) -> None:
+        if getattr(self, "_list_is_dataview", False):
+            self._list.AppendItem(values)  # type: ignore[attr-defined]
+            return
+        row = self._list.InsertItem(self._list.GetItemCount(), values[0] if values else "")  # type: ignore[attr-defined]
+        for col, value in enumerate(values[1:], start=1):
+            self._list.SetItem(row, col, value)  # type: ignore[attr-defined]
 
     def _create_nav_context_menu(self) -> wx.Menu | None:
         return None
@@ -199,11 +225,11 @@ class BaseScheduleTab(wx.Panel):
             self._suppress_nav_event = False
             self._after_nav_update()
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = True
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Do", width=70)
-        list_ctrl.InsertColumn(2, "Tytuł", width=420)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Do", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=420)
 
     def refresh(self, *, force: bool) -> None:
         self._refresh_schedule(force=force)
@@ -542,19 +568,23 @@ class BaseScheduleTab(wx.Panel):
     def _show_schedule(self, items: list[ScheduleItem]) -> None:
         self._items = items
         self._list.DeleteAllItems()
-        for idx, it in enumerate(items):
+        for it in items:
             start = it.start_time.strftime("%H:%M") if it.start_time else ""
             title = it.title
-            row = self._list.InsertItem(idx, start)
-            col = 1
+            values: list[str] = [start]
             if self._show_end_time:
                 end = it.end_time.strftime("%H:%M") if it.end_time else ""
-                self._list.SetItem(row, col, end)
-                col += 1
-            self._list.SetItem(row, col, title)
+                values.append(end)
+            values.append(title)
+            self._append_list_row(values)
 
-    def _on_item_selected(self, evt: wx.ListEvent) -> None:
-        idx = evt.GetIndex()
+    def _on_item_selected(self, evt: wx.Event) -> None:
+        if hasattr(evt, "GetIndex"):
+            idx = int(evt.GetIndex())  # type: ignore[attr-defined]
+        elif getattr(self, "_list_is_dataview", False):
+            idx = int(self._list.GetSelectedRow())  # type: ignore[attr-defined]
+        else:
+            idx = wx.NOT_FOUND
         if idx < 0:
             return
         if not hasattr(self, "_items") or idx >= len(self._items):
@@ -607,10 +637,10 @@ class TvTab(BaseScheduleTab):
         self._favorite_kind: FavoriteKind = "tv"
         super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="tv")
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Tytuł", width=520)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=520)
 
     def sync_favorites(self) -> None:
         # The tab used to expose a checkbox; favorites are now managed via context menu.
@@ -686,11 +716,11 @@ class TvAccessibilityTab(BaseScheduleTab):
         self._n_cb.Bind(wx.EVT_CHECKBOX, self._on_filter_changed)
         header.Add(self._n_cb, 0, wx.ALIGN_CENTER_VERTICAL)
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Tytuł", width=420)
-        list_ctrl.InsertColumn(2, "Udogodnienia", width=240)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=420)
+        self._add_list_column(list_ctrl, "Udogodnienia", width=240)
 
     def _on_loaded_sources_days(self, result: tuple[list[Source], list[date]]) -> None:
         sources, days = result
@@ -752,11 +782,9 @@ class TvAccessibilityTab(BaseScheduleTab):
 
         self._items = filtered
         self._list.DeleteAllItems()
-        for idx, it in enumerate(filtered):
+        for it in filtered:
             start = it.start_time.strftime("%H:%M") if it.start_time else ""
-            row = self._list.InsertItem(idx, start)
-            self._list.SetItem(row, 1, it.title)
-            self._list.SetItem(row, 2, _format_accessibility(it.accessibility))
+            self._append_list_row([start, it.title, _format_accessibility(it.accessibility)])
 
         if not filtered and self._all_items:
             self._details.SetValue("Brak programów spełniających wybrane udogodnienia.")
@@ -937,10 +965,10 @@ class RadioTab(BaseScheduleTab):
         self._favorite_kind: FavoriteKind = "radio"
         super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="radio")
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Tytuł", width=520)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=520)
 
     def _on_loaded_sources_days(self, result: tuple[list[Source], list[date]]) -> None:
         sources, days = result
@@ -1005,10 +1033,10 @@ class FavoritesTab(BaseScheduleTab):
         self._remove_button.Bind(wx.EVT_BUTTON, self._on_remove_button)
         header.Add(self._remove_button, 0, wx.ALIGN_CENTER_VERTICAL)
 
-    def _init_list_columns(self, list_ctrl: wx.ListCtrl) -> None:
+    def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
-        list_ctrl.InsertColumn(0, "Od", width=70)
-        list_ctrl.InsertColumn(1, "Tytuł", width=520)
+        self._add_list_column(list_ctrl, "Od", width=70)
+        self._add_list_column(list_ctrl, "Tytuł", width=520)
 
     def _after_nav_update(self) -> None:
         self._sync_remove_button()
@@ -1124,9 +1152,20 @@ class ArchiveTab(wx.Panel):
         left.SetSizer(left_sizer)
 
         right_sizer = wx.BoxSizer(wx.VERTICAL)
-        self._list = wx.ListCtrl(right, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self._list.InsertColumn(0, "Od", width=70)
-        self._list.InsertColumn(1, "Tytuł", width=740)
+        right_sizer.Add(wx.StaticText(right, label="Programy:"), 0, wx.BOTTOM, 4)
+        self._list_is_dataview = sys.platform == "darwin"
+        if self._list_is_dataview:
+            self._list = dv.DataViewListCtrl(
+                right,
+                style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_VERT_RULES,
+            )
+            self._list.AppendTextColumn("Od", width=70, mode=dv.DATAVIEW_CELL_INERT)
+            self._list.AppendTextColumn("Tytuł", width=740, mode=dv.DATAVIEW_CELL_INERT)
+        else:
+            self._list = wx.ListCtrl(right, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+            self._list.InsertColumn(0, "Od", width=70)
+            self._list.InsertColumn(1, "Tytuł", width=740)
+        self._list.SetName("Programy archiwalne")
         self._list.Bind(wx.EVT_KEY_DOWN, self._on_last_control_key_down)
         right_sizer.Add(self._list, 1, wx.EXPAND)
         right.SetSizer(right_sizer)
@@ -1391,10 +1430,17 @@ class ArchiveTab(wx.Panel):
         if row.data and row.data.kind == "station" and row.data.source and row.data.day:
             self._load_schedule(row.data.source, row.data.day, force=False)
 
+    def _append_list_row(self, values: list[str]) -> None:
+        if getattr(self, "_list_is_dataview", False):
+            self._list.AppendItem(values)  # type: ignore[attr-defined]
+            return
+        row = self._list.InsertItem(self._list.GetItemCount(), values[0] if values else "")  # type: ignore[attr-defined]
+        for col, value in enumerate(values[1:], start=1):
+            self._list.SetItem(row, col, value)  # type: ignore[attr-defined]
+
     def _show_list_message(self, message: str) -> None:
         self._list.DeleteAllItems()
-        row = self._list.InsertItem(0, "")
-        self._list.SetItem(row, 1, message)
+        self._append_list_row(["", message])
 
     def _expand_selected(self) -> bool:
         row = self._get_selected_nav_row()
@@ -1530,13 +1576,12 @@ class ArchiveTab(wx.Panel):
 
     def _show_schedule(self, items: list[ScheduleItem]) -> None:
         self._list.DeleteAllItems()
-        for idx, it in enumerate(items):
+        for it in items:
             start = it.start_time.strftime("%H:%M") if it.start_time else ""
             title = it.title
             if it.subtitle:
                 title = f"{title} — {it.subtitle}"
-            row = self._list.InsertItem(idx, start)
-            self._list.SetItem(row, 1, title)
+            self._append_list_row([start, title])
 
     def _run_in_thread(
         self,
@@ -1558,6 +1603,4 @@ class ArchiveTab(wx.Panel):
     def _on_error(self, exc: Exception) -> None:
         msg = str(exc) or "Nieznany błąd."
         self._status_bar.SetStatusText(f"Błąd: {msg}")
-        self._list.DeleteAllItems()
-        row = self._list.InsertItem(0, "")
-        self._list.SetItem(row, 1, f"Błąd: {msg}")
+        self._show_list_message(f"Błąd: {msg}")
