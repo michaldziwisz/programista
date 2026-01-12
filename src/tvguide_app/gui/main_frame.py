@@ -100,7 +100,6 @@ class MainFrame(wx.Frame):
             search_index=self._search_index,
             on_update=lambda u: wx.CallAfter(self._on_prefetch_update, u),
         )
-        self._prefetch_auto_started = False
 
         self._build_menu()
         self._build_ui()
@@ -369,19 +368,10 @@ class MainFrame(wx.Frame):
         self._status_bar.SetStatusText(getattr(result, "message", "Gotowe."))
         if getattr(result, "updated", None):
             self._refresh_all_tabs()
-        self._ensure_auto_prefetch_started()
 
     def _on_providers_update_error(self, exc: Exception) -> None:
         msg = str(exc) or "Nieznany błąd."
         self._status_bar.SetStatusText(f"Błąd aktualizacji dostawców: {msg}")
-        self._ensure_auto_prefetch_started()
-
-    def _ensure_auto_prefetch_started(self) -> None:
-        if self._prefetch_auto_started:
-            return
-        self._prefetch_auto_started = True
-        self._prefetch.start_full_sync()
-        self._update_prefetch_menu_state()
 
     def _on_start_full_sync(self, _evt: wx.CommandEvent | None = None) -> None:
         started = self._prefetch.start_full_sync()
