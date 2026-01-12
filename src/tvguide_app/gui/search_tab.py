@@ -338,7 +338,9 @@ class SearchTab(BaseScheduleTab):
         def work() -> tuple[str, list[SearchResult], str | None]:
             if self._hub:
                 try:
-                    results = self._hub.search(query, kinds=kinds, limit=200)
+                    # The hub archive is huge; asking for too many hits can be slow and noisy.
+                    limit = 100 if kinds == {"archive"} else 200
+                    results = self._hub.search(query, kinds=kinds, limit=limit)
                     return ("online", results, None)
                 except Exception as e:  # noqa: BLE001
                     results = self._index.search(query, kinds=kinds)
@@ -369,6 +371,10 @@ class SearchTab(BaseScheduleTab):
             else:
                 prefix = "Wyniki (online)" if mode == "online" else "Wyniki (lokalnie)"
                 msg = f"{prefix}: {len(self._results)}"
+                if mode == "online":
+                    cap = 100 if kinds == {"archive"} else 200
+                    if len(self._results) >= cap:
+                        msg += f" • limit {cap}"
                 if warn and mode != "online":
                     msg += f" • {warn}"
                 self._status_bar.SetStatusText(msg)
