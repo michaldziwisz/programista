@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Callable
+import threading
 
 import wx
 
+from tvguide_app.core.hub_api import HubClient
 from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature
 from tvguide_app.core.prefetch import PrefetchStage, PrefetchUpdate
 from tvguide_app.core.search_index import SearchIndex, SearchKind, SearchResult
@@ -54,6 +56,7 @@ class SearchTab(wx.Panel):
         *,
         settings_store: SettingsStore,
         search_index: SearchIndex,
+        hub: HubClient | None = None,
         on_start_full_sync: Callable[[], None] | None = None,
         on_stop_full_sync: Callable[[], None] | None = None,
     ) -> None:
@@ -61,6 +64,7 @@ class SearchTab(wx.Panel):
         self._status_bar = status_bar
         self._settings_store = settings_store
         self._index = search_index
+        self._hub = hub
         self._on_start_full_sync = on_start_full_sync
         self._on_stop_full_sync = on_stop_full_sync
         self._results: list[SearchResult] = []
@@ -125,7 +129,7 @@ class SearchTab(wx.Panel):
 
         hint = wx.StaticText(
             self,
-            label="Wyszukiwanie działa w pamięci podręcznej (pobranych ramówkach).",
+            label="Wyszukiwanie online (jeśli dostępne) z fallbackiem na lokalny cache.",
         )
         root.Add(hint, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
@@ -210,22 +214,68 @@ class SearchTab(wx.Panel):
         query = self._query.GetValue()
         kinds = self._filters.selected()
 
+        def work() -> tuple[str, list[SearchResult], str | None]:
+            if self._hub:
+                try:
+                    results = self._hub.search(query, kinds=kinds, limit=200)
+                    return ("online", results, None)
+                except Exception as e:  # noqa: BLE001
+                    # Fallback to local cache if hub is unavailable or auth fails.
+                    results = self._index.search(query, kinds=kinds)
+                    return ("local", results, str(e) or "Błąd wyszukiwania online.")
+
+            results = self._index.search(query, kinds=kinds)
+            return ("local", results, None)
+
+        def on_success(result: tuple[str, list[SearchResult], str | None]) -> None:
+            mode, results, warn = result
+            self._results = results
+            self._list.DeleteAllItems()
+            for idx, r in enumerate(self._results):
+                row = self._list.InsertItem(idx, r.day.isoformat())
+                self._list.SetItem(row, 1, r.start)
+                self._list.SetItem(row, 2, r.source_name)
+                self._list.SetItem(row, 3, r.title)
+                self._list.SetItem(row, 4, SEARCH_KIND_LABELS.get(r.kind, r.kind))
+                self._list.SetItem(row, 5, _format_accessibility(r.accessibility))
+
+            if not self._results and query.strip():
+                base = "Brak wyników"
+                suffix = " (online)." if mode == "online" else " (w pobranych danych)."
+                self._status_bar.SetStatusText(base + suffix)
+            else:
+                prefix = "Wyniki (online)" if mode == "online" else "Wyniki (lokalnie)"
+                self._status_bar.SetStatusText(f"{prefix}: {len(self._results)}")
+                if warn and mode != "online":
+                    self._status_bar.SetStatusText(f"{prefix}: {len(self._results)} • {warn}")
+
+            self._search_btn.Enable(True)
+
+        def on_error(exc: Exception) -> None:
+            self._search_btn.Enable(True)
+            msg = str(exc) or "Nieznany błąd."
+            self._status_bar.SetStatusText(f"Błąd wyszukiwania: {msg}")
+
+        self._search_btn.Enable(False)
         self._status_bar.SetStatusText("Wyszukiwanie…")
-        self._results = self._index.search(query, kinds=kinds)
+        self._run_in_thread(work, on_success=on_success, on_error=on_error)
 
-        self._list.DeleteAllItems()
-        for idx, r in enumerate(self._results):
-            row = self._list.InsertItem(idx, r.day.isoformat())
-            self._list.SetItem(row, 1, r.start)
-            self._list.SetItem(row, 2, r.source_name)
-            self._list.SetItem(row, 3, r.title)
-            self._list.SetItem(row, 4, SEARCH_KIND_LABELS.get(r.kind, r.kind))
-            self._list.SetItem(row, 5, _format_accessibility(r.accessibility))
+    def _run_in_thread(
+        self,
+        work,
+        *,
+        on_success,
+        on_error,
+    ) -> None:
+        def runner() -> None:
+            try:
+                result = work()
+            except Exception as e:  # noqa: BLE001
+                wx.CallAfter(on_error, e)
+                return
+            wx.CallAfter(on_success, result)
 
-        if not self._results and query.strip():
-            self._status_bar.SetStatusText("Brak wyników (w pobranych danych).")
-        else:
-            self._status_bar.SetStatusText(f"Wyniki: {len(self._results)}")
+        threading.Thread(target=runner, daemon=True).start()
 
 
 def _format_accessibility(features: tuple[AccessibilityFeature, ...]) -> str:

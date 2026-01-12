@@ -10,6 +10,7 @@ from platformdirs import user_cache_dir, user_data_dir
 
 from tvguide_app.core.cache import SqliteCache
 from tvguide_app.core.favorites import FavoritesStore
+from tvguide_app.core.hub_api import HubClient
 from tvguide_app.core.http import HttpClient
 from tvguide_app.core.provider_packs.loader import PackStore
 from tvguide_app.core.provider_packs.service import ProviderPackService
@@ -85,6 +86,12 @@ class MainFrame(wx.Frame):
 
         self._status_bar = self.CreateStatusBar()
 
+        self._hub = HubClient(
+            self._settings_store,
+            app_version=self._app_version(),
+            user_agent=f"programista/{self._app_version()} (+desktop)",
+        )
+
         self._prefetch = PrefetchManager(
             tv=self._tv_provider,
             tv_accessibility=self._tv_accessibility_provider,
@@ -99,6 +106,7 @@ class MainFrame(wx.Frame):
         self._build_ui()
         self._install_tab_shortcuts()
         self._auto_update_providers()
+        self._ensure_hub_api_key()
         self.Bind(wx.EVT_CLOSE, self._on_close)
 
     def _on_close(self, evt: wx.CloseEvent) -> None:
@@ -251,6 +259,7 @@ class MainFrame(wx.Frame):
             self._status_bar,
             settings_store=self._settings_store,
             search_index=self._search_index,
+            hub=self._hub,
             on_start_full_sync=self._on_start_full_sync,
             on_stop_full_sync=self._on_stop_full_sync,
         )
@@ -335,6 +344,18 @@ class MainFrame(wx.Frame):
             on_success=self._on_providers_updated,
             on_error=self._on_providers_update_error,
         )
+
+    def _ensure_hub_api_key(self) -> None:
+        if self._settings_store.get_hub_api_key():
+            return
+
+        def work():
+            try:
+                return self._hub.ensure_api_key()
+            except Exception:  # noqa: BLE001
+                return None
+
+        self._run_in_thread(work, on_success=lambda _result: None, on_error=lambda _exc: None)
 
     def _on_update_providers(self, _evt: wx.CommandEvent) -> None:
         self._status_bar.SetStatusText("Aktualizowanie dostawców…")

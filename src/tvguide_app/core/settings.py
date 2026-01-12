@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,44 @@ class SettingsStore:
                 "archive": bool(filters.archive),
             }
             self._save(self._data)
+
+    def get_hub_install_id(self) -> str | None:
+        with self._lock:
+            value = self._data.get("hub_install_id")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            return None
+
+    def get_or_create_hub_install_id(self) -> str:
+        with self._lock:
+            existing = self.get_hub_install_id()
+            if existing:
+                return existing
+            install_id = str(uuid.uuid4())
+            self._data["hub_install_id"] = install_id
+            self._save(self._data)
+            return install_id
+
+    def get_hub_api_key(self) -> str | None:
+        with self._lock:
+            value = self._data.get("hub_api_key")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            return None
+
+    def set_hub_api_key(self, api_key: str) -> None:
+        api_key = (api_key or "").strip()
+        if not api_key:
+            return
+        with self._lock:
+            self._data["hub_api_key"] = api_key
+            self._save(self._data)
+
+    def clear_hub_api_key(self) -> None:
+        with self._lock:
+            if "hub_api_key" in self._data:
+                del self._data["hub_api_key"]
+                self._save(self._data)
 
     def _load(self) -> dict[str, Any]:
         if not self._path.exists():
