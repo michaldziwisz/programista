@@ -27,6 +27,7 @@ class SearchResult:
     details_ref: str | None = None
     details_summary: str | None = None
     accessibility: tuple[AccessibilityFeature, ...] = ()
+    item_id: int | None = None
 
 
 class SearchIndex:

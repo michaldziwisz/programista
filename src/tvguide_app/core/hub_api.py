@@ -86,6 +86,7 @@ class HubClient:
         *,
         kinds: set[SearchKind],
         limit: int = 200,
+        cursor: int | None = None,
     ) -> list[SearchResult]:
         api_key = self.ensure_api_key()
         if not api_key:
@@ -99,6 +100,8 @@ class HubClient:
             "kinds": sorted(kinds),
             "limit": max(1, min(int(limit), 200)),
         }
+        if cursor is not None:
+            payload["cursor"] = int(cursor)
         if not payload["query"]:
             return []
 
@@ -165,6 +168,13 @@ class HubClient:
             if details_summary is not None:
                 details_summary = str(details_summary).strip() or None
 
+            item_id = row.get("item_id")
+            if item_id is not None:
+                try:
+                    item_id = int(item_id)
+                except (TypeError, ValueError):
+                    item_id = None
+
             feats_raw = row.get("accessibility")
             feats: list[str] = []
             if isinstance(feats_raw, list):
@@ -184,6 +194,7 @@ class HubClient:
                     details_ref=details_ref,
                     details_summary=details_summary,
                     accessibility=accessibility,  # type: ignore[arg-type]
+                    item_id=item_id,  # type: ignore[arg-type]
                 )
             )
 

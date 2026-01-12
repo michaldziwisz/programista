@@ -208,6 +208,12 @@ class SearchTab(BaseScheduleTab):
         self._index = search_index
         self._hub = hub
         self._results: list[SearchResult] = []
+        self._search_query: str = ""
+        self._search_kinds: set[SearchKind] = set()
+        self._search_mode: str | None = None
+        self._hub_cursor: int | None = None
+        self._has_more: bool = False
+        self._is_loading: bool = False
         self._filters = self._load_persisted_filters()
         self._provider = _SearchResultsProvider(hub=hub)
 
@@ -258,6 +264,10 @@ class SearchTab(BaseScheduleTab):
         self._details.SetValue("")
         self._rebuild_nav()
         self._status_bar.SetStatusText("Wpisz frazę i naciśnij Szukaj.")
+        self._search_mode = None
+        self._hub_cursor = None
+        self._has_more = False
+        self._update_paging_controls()
 
     def _create_header_controls(self, header: wx.BoxSizer) -> None:
         panel = wx.BoxSizer(wx.VERTICAL)
@@ -291,6 +301,15 @@ class SearchTab(BaseScheduleTab):
 
         hint = wx.StaticText(self, label="Wyszukiwanie online (jeśli dostępne) z fallbackiem na lokalny cache.")
         panel.Add(hint, 0, wx.BOTTOM, 6)
+
+        results_row = wx.BoxSizer(wx.HORIZONTAL)
+        self._results_label = wx.StaticText(self, label="Wyniki: 0")
+        results_row.Add(self._results_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self._more_btn = wx.Button(self, label="Pokaż więcej")
+        self._more_btn.Disable()
+        self._more_btn.Bind(wx.EVT_BUTTON, lambda _evt: self._load_more())
+        results_row.Add(self._more_btn, 0, wx.ALIGN_CENTER_VERTICAL)
+        panel.Add(results_row, 0, wx.EXPAND)
 
         header.Add(panel, 1, wx.EXPAND)
 
@@ -328,41 +347,126 @@ class SearchTab(BaseScheduleTab):
         self._persist_filters()
 
     def _run_search(self) -> None:
-        query = self._query.GetValue()
+        query = (self._query.GetValue() or "").strip()
         kinds = self._filters.selected()
 
-        if not (query or "").strip():
+        if not query:
             self.refresh_all(force=False)
             return
+
+        self._search_query = query
+        self._search_kinds = set(kinds)
+        self._search_mode = None
+        self._hub_cursor = None
+        self._has_more = False
+        self._results = []
+        self._provider.set_results([])
+        self._sources = []
+        self._days = []
+        self._days_by_provider_id = {}
+        self._expanded_by_source.clear()
+        self._expanded_by_day.clear()
+        self._list.DeleteAllItems()
+        self._details.SetValue("")
+        self._rebuild_nav()
+        self._update_paging_controls()
+
+        self._fetch_next_page(reset=True)
+
+    def _page_size(self) -> int:
+        # The archive is huge; keep the page smaller for speed and to avoid noisy results.
+        return 100 if "archive" in self._search_kinds else 200
+
+    def _update_paging_controls(self) -> None:
+        if hasattr(self, "_results_label"):
+            self._results_label.SetLabel(f"Wyniki: {len(self._results)}")
+        if hasattr(self, "_more_btn"):
+            self._more_btn.Enable(bool(self._search_mode == "online" and self._has_more and not self._is_loading))
+
+    def _load_more(self) -> None:
+        if self._is_loading:
+            return
+        if not self._has_more:
+            return
+        self._fetch_next_page(reset=False)
+
+    def _fetch_next_page(self, *, reset: bool) -> None:
+        if self._is_loading:
+            return
+        query = (self._search_query or "").strip()
+        if not query:
+            return
+
+        page_size = self._page_size()
+        cursor = None if reset else self._hub_cursor
+        kinds = set(self._search_kinds)
 
         def work() -> tuple[str, list[SearchResult], str | None]:
             if self._hub:
                 try:
-                    # The hub archive is huge; asking for too many hits can be slow and noisy.
-                    limit = 100 if kinds == {"archive"} else 200
-                    results = self._hub.search(query, kinds=kinds, limit=limit)
+                    results = self._hub.search(query, kinds=kinds, limit=page_size, cursor=cursor)
                     return ("online", results, None)
                 except Exception as e:  # noqa: BLE001
-                    results = self._index.search(query, kinds=kinds)
-                    return ("local", results, str(e) or "Błąd wyszukiwania online.")
+                    if reset:
+                        results = self._index.search(query, kinds=kinds)
+                        return ("local", results, str(e) or "Błąd wyszukiwania online.")
+                    raise
 
             results = self._index.search(query, kinds=kinds)
             return ("local", results, None)
 
         def on_success(result: tuple[str, list[SearchResult], str | None]) -> None:
             mode, results, warn = result
-            self._results = results
+            self._search_mode = mode
 
-            self._provider.set_results(results)
+            if mode == "online":
+                ids = [r.item_id for r in results if isinstance(r.item_id, int)]
+                next_cursor = min(ids) if ids else None
+                has_more = len(results) >= page_size and next_cursor is not None
+                if reset:
+                    merged = list(results)
+                else:
+                    merged = list(self._results) + list(results)
+
+                # Deduplicate just in case (shouldn't happen with cursor paging, but safe).
+                seen: set[tuple[str, str, str, str, str, str]] = set()
+                deduped: list[SearchResult] = []
+                for r in merged:
+                    key = (
+                        str(r.kind),
+                        str(r.provider_id),
+                        str(r.source_id),
+                        r.day.isoformat(),
+                        str(r.start),
+                        str(r.title).casefold(),
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    deduped.append(r)
+
+                self._results = deduped
+                self._hub_cursor = next_cursor
+                self._has_more = has_more
+            else:
+                # Local results are limited to what was already browsed/cached.
+                self._results = results
+                self._hub_cursor = None
+                self._has_more = False
+
+            self._provider.set_results(self._results)
             self._sources = self._provider.list_sources(force_refresh=False)
             self._days = self._provider.list_days(force_refresh=False)
             self._days_by_provider_id = {}
-            self._expanded_by_source.clear()
-            self._expanded_by_day.clear()
+            if reset:
+                self._expanded_by_source.clear()
+                self._expanded_by_day.clear()
 
             self._list.DeleteAllItems()
             self._details.SetValue("")
             self._rebuild_nav()
+            if not reset:
+                self._refresh_schedule(force=False)
 
             if not self._results and query.strip():
                 base = "Brak wyników"
@@ -371,21 +475,25 @@ class SearchTab(BaseScheduleTab):
             else:
                 prefix = "Wyniki (online)" if mode == "online" else "Wyniki (lokalnie)"
                 msg = f"{prefix}: {len(self._results)}"
-                if mode == "online":
-                    cap = 100 if kinds == {"archive"} else 200
-                    if len(self._results) >= cap:
-                        msg += f" • limit {cap}"
+                if mode == "online" and self._has_more:
+                    msg += f" • następna strona"
                 if warn and mode != "online":
                     msg += f" • {warn}"
                 self._status_bar.SetStatusText(msg)
 
             self._search_btn.Enable(True)
+            self._is_loading = False
+            self._update_paging_controls()
 
         def on_error(exc: Exception) -> None:
             self._search_btn.Enable(True)
+            self._is_loading = False
             msg = str(exc) or "Nieznany błąd."
             self._status_bar.SetStatusText(f"Błąd wyszukiwania: {msg}")
+            self._update_paging_controls()
 
         self._search_btn.Enable(False)
+        self._is_loading = True
+        self._update_paging_controls()
         self._status_bar.SetStatusText("Wyszukiwanie…")
         self._run_in_thread(work, on_success=on_success, on_error=on_error)
