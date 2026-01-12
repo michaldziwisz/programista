@@ -19,7 +19,6 @@ from tvguide_app.core.providers.favorites import FavoritesProvider
 from tvguide_app.core.providers.fandom_archive import FandomArchiveProvider
 from tvguide_app.core.providers.polskieradio import PolskieRadioProvider
 from tvguide_app.core.providers.teleman import TelemanProvider
-from tvguide_app.core.prefetch import PrefetchManager, PrefetchUpdate
 from tvguide_app.core.schedule_cache import CachedArchiveProvider, CachedScheduleProvider
 from tvguide_app.core.search_index import SearchIndex
 from tvguide_app.core.settings import SettingsStore
@@ -90,15 +89,6 @@ class MainFrame(wx.Frame):
             self._settings_store,
             app_version=self._app_version(),
             user_agent=f"programista/{self._app_version()} (+desktop)",
-        )
-
-        self._prefetch = PrefetchManager(
-            tv=self._tv_provider,
-            tv_accessibility=self._tv_accessibility_provider,
-            radio=self._radio_provider,
-            archive=self._archive_provider,
-            search_index=self._search_index,
-            on_update=lambda u: wx.CallAfter(self._on_prefetch_update, u),
         )
 
         self._build_menu()
@@ -199,16 +189,11 @@ class MainFrame(wx.Frame):
         refresh_item = data_menu.Append(wx.ID_REFRESH, "Odśwież\tF5")
         force_item = data_menu.Append(wx.ID_ANY, "Wymuś odświeżenie\tCtrl+R")
         update_providers_item = data_menu.Append(wx.ID_ANY, "Aktualizuj dostawców\tCtrl+U")
-        self._prefetch_start_item = data_menu.Append(wx.ID_ANY, "Pobierz wszystko do cache (w tle)")
-        self._prefetch_stop_item = data_menu.Append(wx.ID_ANY, "Zatrzymaj pobieranie do cache")
-        self._prefetch_stop_item.Enable(False)
         clear_cache_item = data_menu.Append(wx.ID_ANY, "Wyczyść cache")
 
         self.Bind(wx.EVT_MENU, self._on_refresh, refresh_item)
         self.Bind(wx.EVT_MENU, self._on_force_refresh, force_item)
         self.Bind(wx.EVT_MENU, self._on_update_providers, update_providers_item)
-        self.Bind(wx.EVT_MENU, self._on_start_full_sync, self._prefetch_start_item)
-        self.Bind(wx.EVT_MENU, self._on_stop_full_sync, self._prefetch_stop_item)
         self.Bind(wx.EVT_MENU, self._on_clear_cache, clear_cache_item)
 
         menubar.Append(file_menu, "Plik")
@@ -259,8 +244,6 @@ class MainFrame(wx.Frame):
             settings_store=self._settings_store,
             search_index=self._search_index,
             hub=self._hub,
-            on_start_full_sync=self._on_start_full_sync,
-            on_stop_full_sync=self._on_stop_full_sync,
         )
         self._archive_tab = ArchiveTab(
             self._notebook,
@@ -310,14 +293,9 @@ class MainFrame(wx.Frame):
             tab.refresh(force=True)
 
     def _on_clear_cache(self, _evt: wx.CommandEvent) -> None:
-        try:
-            self._prefetch.stop()
-        except Exception:  # noqa: BLE001
-            pass
         self._cache.clear()
         self._search_index.clear()
         self._status_bar.SetStatusText("Wyczyszczono cache.")
-        self._update_prefetch_menu_state()
         tab = self._active_tab()
         if hasattr(tab, "refresh_all"):
             tab.refresh_all(force=True)
@@ -372,52 +350,6 @@ class MainFrame(wx.Frame):
     def _on_providers_update_error(self, exc: Exception) -> None:
         msg = str(exc) or "Nieznany błąd."
         self._status_bar.SetStatusText(f"Błąd aktualizacji dostawców: {msg}")
-
-    def _on_start_full_sync(self, _evt: wx.CommandEvent | None = None) -> None:
-        started = self._prefetch.start_full_sync()
-        if not started:
-            self._status_bar.SetStatusText("Pobieranie cache już trwa.")
-        else:
-            self._status_bar.SetStatusText("Pobieranie cache uruchomione.")
-        self._update_prefetch_menu_state()
-
-    def _on_stop_full_sync(self, _evt: wx.CommandEvent | None = None) -> None:
-        self._prefetch.stop()
-        self._status_bar.SetStatusText("Zatrzymywanie pobierania cache…")
-        self._update_prefetch_menu_state()
-
-    def _update_prefetch_menu_state(self) -> None:
-        running = self._prefetch.is_running()
-        if hasattr(self, "_prefetch_start_item"):
-            self._prefetch_start_item.Enable(not running)
-        if hasattr(self, "_prefetch_stop_item"):
-            self._prefetch_stop_item.Enable(running)
-        if hasattr(self, "_search_tab"):
-            try:
-                self._search_tab.set_prefetch_running(running)
-            except Exception:  # noqa: BLE001
-                pass
-
-    def _on_prefetch_update(self, update: PrefetchUpdate) -> None:
-        stage_label = {
-            "tv": "Telewizja",
-            "tv_accessibility": "TV z udogodnieniami",
-            "radio": "Radio",
-            "archive": "Archiwum",
-        }.get(getattr(update, "stage", ""), str(getattr(update, "stage", "cache")))
-        if getattr(update, "total", None):
-            self._status_bar.SetStatusText(
-                f"Cache: {stage_label} {update.done}/{update.total} • błędy: {update.errors} • {update.message}"
-            )
-        else:
-            self._status_bar.SetStatusText(f"Cache: {stage_label} • błędy: {update.errors} • {update.message}")
-
-        if hasattr(self, "_search_tab"):
-            try:
-                self._search_tab.update_prefetch(update, running=self._prefetch.is_running())
-            except Exception:  # noqa: BLE001
-                pass
-        self._update_prefetch_menu_state()
 
     def _run_in_thread(self, work, *, on_success, on_error) -> None:
         def runner() -> None:
