@@ -23,7 +23,10 @@ class SearchResult:
     day: date
     start: str
     title: str
-    accessibility: tuple[AccessibilityFeature, ...]
+    subtitle: str | None = None
+    details_ref: str | None = None
+    details_summary: str | None = None
+    accessibility: tuple[AccessibilityFeature, ...] = ()
 
 
 class SearchIndex:

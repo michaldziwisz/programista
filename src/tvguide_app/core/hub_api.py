@@ -153,6 +153,18 @@ class HubClient:
             # API returns ISO time (HH:MM:SS); in UI we display HH:MM.
             start = start_raw[:5] if len(start_raw) >= 5 else start_raw
 
+            subtitle = row.get("subtitle")
+            if subtitle is not None:
+                subtitle = str(subtitle).strip() or None
+
+            details_ref = row.get("details_ref")
+            if details_ref is not None:
+                details_ref = str(details_ref).strip() or None
+
+            details_summary = row.get("details_summary")
+            if details_summary is not None:
+                details_summary = str(details_summary).strip() or None
+
             feats_raw = row.get("accessibility")
             feats: list[str] = []
             if isinstance(feats_raw, list):
@@ -168,6 +180,9 @@ class HubClient:
                     day=day,
                     start=start,
                     title=title,
+                    subtitle=subtitle,
+                    details_ref=details_ref,
+                    details_summary=details_summary,
                     accessibility=accessibility,  # type: ignore[arg-type]
                 )
             )
@@ -175,3 +190,45 @@ class HubClient:
         # Keep results readable: chronological by default (like local search).
         out.sort(key=lambda r: (r.day, r.start, r.source_name.casefold(), r.title.casefold()))
         return out
+
+    def get_details_text(self, provider_id: str, details_ref: str) -> str | None:
+        provider_id = (provider_id or "").strip()
+        details_ref = (details_ref or "").strip()
+        if not provider_id or not details_ref:
+            return None
+
+        api_key = self.ensure_api_key()
+        if not api_key:
+            return None
+
+        payload = {"provider_id": provider_id, "details_ref": details_ref}
+        headers = {API_KEY_HEADER: api_key}
+
+        resp = self._session.post(
+            f"{self._base_url}/details",
+            json=payload,
+            headers=headers,
+            timeout=10.0,
+        )
+        if resp.status_code == 401:
+            self._settings.clear_hub_api_key()
+            api_key = self.ensure_api_key()
+            if not api_key:
+                return None
+            headers = {API_KEY_HEADER: api_key}
+            resp = self._session.post(
+                f"{self._base_url}/details",
+                json=payload,
+                headers=headers,
+                timeout=10.0,
+            )
+
+        if resp.status_code == 404:
+            return None
+
+        resp.raise_for_status()
+        obj = resp.json()
+        text = obj.get("text") if isinstance(obj, dict) else None
+        if not isinstance(text, str) or not text.strip():
+            return None
+        return text.strip()
