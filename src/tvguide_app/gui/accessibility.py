@@ -242,96 +242,20 @@ def install_dataview_tree_accessible(tree: dv.DataViewTreeCtrl, *, name: str) ->
     win.SetAccessible(DataViewTreeCtrlAccessible(win, tree, name=name))
 
 
-class NotebookTabAccessible(wx.Accessible):
-    def __init__(self, win: wx.Window, root: "NotebookAccessible", idx: int) -> None:
-        super().__init__(win)
-        self._root = root
-        self._idx = idx
-
-    def _label(self) -> str:
-        nb = self._root._notebook
-        if not nb or self._idx < 0 or self._idx >= nb.GetPageCount():
-            return ""
-        return nb.GetPageText(self._idx) or ""
-
-    def GetName(self, childId: int):  # noqa: N802
-        if childId != 0:
-            return wx.ACC_INVALID_ARG, ""
-        return wx.ACC_OK, self._label()
-
-    def GetRole(self, childId: int):  # noqa: N802
-        if childId != 0:
-            return wx.ACC_INVALID_ARG, wx.ROLE_NONE
-        return wx.ACC_OK, wx.ROLE_SYSTEM_PAGETAB
-
-    def GetValue(self, _childId: int):  # noqa: N802
-        return wx.ACC_OK, ""
-
-    def GetState(self, _childId: int):  # noqa: N802
-        nb = self._root._notebook
-        if not nb or self._idx < 0 or self._idx >= nb.GetPageCount():
-            return wx.ACC_FAIL, 0
-
-        state = wx.ACC_STATE_SYSTEM_FOCUSABLE | wx.ACC_STATE_SYSTEM_SELECTABLE
-        if nb.GetSelection() == self._idx:
-            state |= wx.ACC_STATE_SYSTEM_SELECTED
-            win = self.GetWindow()
-            if (win and win.HasFocus()) or nb.HasFocus():
-                state |= wx.ACC_STATE_SYSTEM_FOCUSED
-        return wx.ACC_OK, state
-
-    def GetParent(self):  # noqa: N802
-        return wx.ACC_OK, self._root
-
-    def GetChildCount(self):  # noqa: N802
-        return wx.ACC_OK, 0
-
-    def DoDefaultAction(self, childId: int):  # noqa: N802
-        if childId != 0:
-            return wx.ACC_INVALID_ARG
-        nb = self._root._notebook
-        if not nb:
-            return wx.ACC_FAIL
-        nb.ChangeSelection(self._idx)
-        nb.SetFocus()
-        return wx.ACC_OK
-
-    def Select(self, childId: int, selectFlags: int):  # noqa: N802
-        if childId != 0:
-            return wx.ACC_INVALID_ARG
-        if selectFlags not in (wx.ACC_SEL_TAKESELECTION, wx.ACC_SEL_TAKEFOCUS):
-            return wx.ACC_NOT_SUPPORTED
-        nb = self._root._notebook
-        if not nb:
-            return wx.ACC_FAIL
-        nb.ChangeSelection(self._idx)
-        if selectFlags == wx.ACC_SEL_TAKEFOCUS:
-            nb.SetFocus()
-        return wx.ACC_OK
-
-
 class NotebookAccessible(wx.Accessible):
     """
     MSW-only: fix NVDA reporting incorrect number of tabs for wx.Notebook.
 
     Some combinations of wxWidgets/Windows accessibility may expose extra
     children (pages, scroll buttons) as "tabs". Expose only the actual
-    page tabs to ATs.
+    page tabs to ATs, using MSAA child IDs (so screen readers can announce
+    correct "x z y" positions).
     """
 
-    def __init__(self, win: wx.Window, notebook: wx.Notebook, *, name: str) -> None:
-        super().__init__(win)
-        self._notebook = notebook
+    def __init__(self, notebook: wx.Notebook, *, name: str) -> None:
+        super().__init__(notebook)
+        self._notebook: wx.Notebook | None = notebook
         self._name = name
-        self._tab_cache: dict[int, NotebookTabAccessible] = {}
-
-    def _tab(self, idx: int) -> NotebookTabAccessible:
-        cached = self._tab_cache.get(idx)
-        if cached is not None:
-            return cached
-        acc = NotebookTabAccessible(self.GetWindow(), self, idx)
-        self._tab_cache[idx] = acc
-        return acc
 
     def GetName(self, childId: int):  # noqa: N802
         if childId == 0:
@@ -349,60 +273,53 @@ class NotebookAccessible(wx.Accessible):
     def GetValue(self, _childId: int):  # noqa: N802
         return wx.ACC_OK, ""
 
-    def GetState(self, _childId: int):  # noqa: N802
-        state = wx.ACC_STATE_SYSTEM_FOCUSABLE
-        win = self.GetWindow()
-        if (win and win.HasFocus()) or (self._notebook and self._notebook.HasFocus()):
-            state |= wx.ACC_STATE_SYSTEM_FOCUSED
+    def GetState(self, childId: int):  # noqa: N802
+        nb = self._notebook
+        if not nb:
+            return wx.ACC_FAIL, 0
+
+        if childId == 0:
+            state = wx.ACC_STATE_SYSTEM_FOCUSABLE
+            win = self.GetWindow()
+            if (win and win.HasFocus()) or nb.HasFocus():
+                state |= wx.ACC_STATE_SYSTEM_FOCUSED
+            return wx.ACC_OK, state
+
+        idx = childId - 1
+        if idx < 0 or idx >= nb.GetPageCount():
+            return wx.ACC_INVALID_ARG, 0
+
+        state = wx.ACC_STATE_SYSTEM_FOCUSABLE | wx.ACC_STATE_SYSTEM_SELECTABLE
+        if nb.GetSelection() == idx:
+            state |= wx.ACC_STATE_SYSTEM_SELECTED
+            win = self.GetWindow()
+            if (win and win.HasFocus()) or nb.HasFocus():
+                state |= wx.ACC_STATE_SYSTEM_FOCUSED
         return wx.ACC_OK, state
 
     def GetChildCount(self):  # noqa: N802
-        if not self._notebook:
+        nb = self._notebook
+        if not nb:
             return wx.ACC_FAIL, 0
-        return wx.ACC_OK, self._notebook.GetPageCount()
+        return wx.ACC_OK, nb.GetPageCount()
 
     def GetChild(self, childId: int):  # noqa: N802
-        if not self._notebook or childId < 1:
+        nb = self._notebook
+        if not nb or childId < 1:
             return wx.ACC_INVALID_ARG, None
         idx = childId - 1
-        if idx < 0 or idx >= self._notebook.GetPageCount():
+        if idx < 0 or idx >= nb.GetPageCount():
             return wx.ACC_INVALID_ARG, None
-        return wx.ACC_OK, self._tab(idx)
-
-    def GetFocus(self, *args, **kwargs):  # noqa: N802
-        if not self._notebook:
-            return wx.ACC_FAIL, None
-        idx = self._notebook.GetSelection()
-        if idx is None or idx < 0:
-            return wx.ACC_FAIL, None
-        return wx.ACC_OK, self._tab(idx)
-
-    def GetSelections(self, *args, **kwargs):  # noqa: N802
-        if not self._notebook:
-            return wx.ACC_FAIL, None
-        idx = self._notebook.GetSelection()
-        if idx is None or idx < 0:
-            return wx.ACC_OK, []
-        return wx.ACC_OK, [self._tab(idx)]
+        # Use MSAA child IDs rather than returning a separate wx.Accessible
+        # instance for each tab. This helps screen readers compute positions.
+        return wx.ACC_OK, None
 
 
 def install_notebook_accessible(notebook: wx.Notebook, *, name: str = "Zakładki") -> None:
     if wx.Platform != "__WXMSW__":
         return
+    existing = notebook.GetAccessible()
+    if isinstance(existing, NotebookAccessible):
+        return
     notebook.SetName(name)
-
-    def install_on(win: wx.Window) -> None:
-        existing = win.GetAccessible()
-        if isinstance(existing, NotebookAccessible):
-            return
-        win.SetAccessible(NotebookAccessible(win, notebook, name=name))
-
-    install_on(notebook)
-
-    page_windows = {notebook.GetPage(i) for i in range(notebook.GetPageCount())}
-    for child in notebook.GetChildren():
-        # Avoid overriding the pages' own accessibility. We only want the
-        # notebook/tab-strip windows to expose a clean tab list.
-        if child in page_windows:
-            continue
-        install_on(child)
+    notebook.SetAccessible(NotebookAccessible(notebook, name=name))

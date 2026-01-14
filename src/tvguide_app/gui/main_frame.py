@@ -22,6 +22,7 @@ from tvguide_app.core.providers.teleman import TelemanProvider
 from tvguide_app.core.schedule_cache import CachedArchiveProvider, CachedScheduleProvider
 from tvguide_app.core.search_index import SearchIndex
 from tvguide_app.core.settings import SettingsStore
+from tvguide_app.gui.accessibility import install_notebook_accessible
 from tvguide_app.gui.search_tab import SearchTab
 from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
@@ -263,6 +264,8 @@ class MainFrame(wx.Frame):
         self._notebook.AddPage(self._favorites_tab, "Ulubione")
         self._notebook.AddPage(self._search_tab, "Wyszukiwanie")
         self._notebook.AddPage(self._archive_tab, "Programy archiwalne")
+
+        install_notebook_accessible(self._notebook)
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)
