@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import sys
+import time
 import threading
 from dataclasses import dataclass
 from datetime import date
@@ -67,6 +68,7 @@ class BaseScheduleTab(wx.Panel):
         self._expanded_by_source: set[str] = set()
         self._expanded_by_day: set[str] = set()
         self._suppress_nav_event = False
+        self._nav_ignore_activate_until = 0.0
 
         self._build_ui()
         self.refresh_all(force=False)
@@ -96,7 +98,7 @@ class BaseScheduleTab(wx.Panel):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(wx.StaticText(left, label="Nawigacja:"), 0, wx.BOTTOM, 4)
-        self._nav = wx.ListBox(left, style=wx.LB_SINGLE | wx.LB_HSCROLL)
+        self._nav = wx.ListBox(left, style=wx.LB_SINGLE | wx.LB_HSCROLL | wx.WANTS_CHARS)
         self._nav.Bind(wx.EVT_LISTBOX, self._on_nav_selection)
         self._nav.Bind(wx.EVT_LISTBOX_DCLICK, self._on_nav_activate)
         self._nav.Bind(wx.EVT_KEY_DOWN, self._on_nav_key_down)
@@ -166,7 +168,7 @@ class BaseScheduleTab(wx.Panel):
 
     def _on_list_key_down(self, evt: wx.KeyEvent) -> None:
         key = evt.GetKeyCode()
-        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             idx = self._ensure_list_selection()
             if idx is None:
                 return
@@ -455,6 +457,9 @@ class BaseScheduleTab(wx.Panel):
         self._load_schedule(row.data.source, row.data.day, force=False)
 
     def _on_nav_activate(self, _evt: wx.CommandEvent) -> None:
+        if time.monotonic() < self._nav_ignore_activate_until:
+            self._nav_ignore_activate_until = 0.0
+            return
         self._toggle_or_load_selected()
 
     def _on_nav_key_down(self, evt: wx.KeyEvent) -> None:
@@ -469,7 +474,8 @@ class BaseScheduleTab(wx.Panel):
                 return
             # Tree semantics: if nothing to collapse/go up to, do nothing (don't move selection).
             return
-        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self._nav_ignore_activate_until = time.monotonic() + 0.3
             self._advance_from_nav()
             return
         elif key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
@@ -1236,6 +1242,7 @@ class ArchiveTab(wx.Panel):
         self._loading: set[str] = set()
         self._items: list[ScheduleItem] = []
         self._suppress_nav_event = False
+        self._nav_ignore_activate_until = 0.0
 
         self._build_ui()
         self.refresh_all(force=False)
@@ -1256,7 +1263,7 @@ class ArchiveTab(wx.Panel):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(wx.StaticText(left, label="Nawigacja:"), 0, wx.BOTTOM, 4)
-        self._nav = wx.ListBox(left, style=wx.LB_SINGLE | wx.LB_HSCROLL)
+        self._nav = wx.ListBox(left, style=wx.LB_SINGLE | wx.LB_HSCROLL | wx.WANTS_CHARS)
         self._nav.Bind(wx.EVT_LISTBOX, self._on_nav_selection)
         self._nav.Bind(wx.EVT_LISTBOX_DCLICK, self._on_nav_activate)
         self._nav.Bind(wx.EVT_KEY_DOWN, self._on_nav_key_down)
@@ -1325,7 +1332,7 @@ class ArchiveTab(wx.Panel):
 
     def _on_list_key_down(self, evt: wx.KeyEvent) -> None:
         key = evt.GetKeyCode()
-        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             idx = self._ensure_list_selection()
             if idx is None:
                 return
@@ -1544,6 +1551,9 @@ class ArchiveTab(wx.Panel):
         self._load_schedule(row.data.source, row.data.day, force=False)
 
     def _on_nav_activate(self, _evt: wx.CommandEvent) -> None:
+        if time.monotonic() < self._nav_ignore_activate_until:
+            self._nav_ignore_activate_until = 0.0
+            return
         self._toggle_or_load_selected()
 
     def _on_nav_key_down(self, evt: wx.KeyEvent) -> None:
@@ -1556,7 +1566,8 @@ class ArchiveTab(wx.Panel):
             if self._collapse_selected():
                 return
             return
-        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self._nav_ignore_activate_until = time.monotonic() + 0.3
             self._advance_from_nav()
             return
         elif key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
