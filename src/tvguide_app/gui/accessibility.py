@@ -345,7 +345,11 @@ class NotebookAccessible(wx.Accessible):
         idx = childId - 1
         if not self._notebook or idx < 0 or idx >= self._notebook.GetPageCount():
             return wx.ACC_INVALID_ARG, ""
-        return wx.ACC_OK, self._notebook.GetPageText(idx) or ""
+        label = self._notebook.GetPageText(idx) or ""
+        count = self._notebook.GetPageCount()
+        if label and count > 0:
+            return wx.ACC_OK, f"{label} ({idx + 1} z {count})"
+        return wx.ACC_OK, label
 
     def GetRole(self, childId: int):  # noqa: N802
         if childId == 0:
