@@ -124,6 +124,7 @@ class BaseScheduleTab(wx.Panel):
         else:
             self._list = wx.ListCtrl(list_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
             self._list.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_item_selected)
+        self._list.Bind(wx.EVT_KEY_DOWN, self._on_list_key_down)
         self._list.SetName("Programy")
         self._init_list_columns(self._list)
         list_sizer.Add(self._list, 1, wx.EXPAND)
@@ -147,6 +148,10 @@ class BaseScheduleTab(wx.Panel):
         self.SetSizer(root)
 
     def _on_last_control_key_down(self, evt: wx.KeyEvent) -> None:
+        if evt.GetKeyCode() == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            if hasattr(self, "_list"):
+                self._list.SetFocus()
+                return
         if (
             evt.GetKeyCode() == wx.WXK_TAB
             and not evt.ShiftDown()
@@ -157,6 +162,20 @@ class BaseScheduleTab(wx.Panel):
             if isinstance(parent, wx.Notebook):
                 parent.SetFocus()
                 return
+        evt.Skip()
+
+    def _on_list_key_down(self, evt: wx.KeyEvent) -> None:
+        key = evt.GetKeyCode()
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            idx = self._ensure_list_selection()
+            if idx is None:
+                return
+            self._show_item_details(idx)
+            self._details.SetFocus()
+            return
+        if key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            self._nav.SetFocus()
+            return
         evt.Skip()
 
     def _create_header_controls(self, _header: wx.BoxSizer) -> None:
@@ -450,7 +469,13 @@ class BaseScheduleTab(wx.Panel):
                 return
             # Tree semantics: if nothing to collapse/go up to, do nothing (don't move selection).
             return
-        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            self._advance_from_nav()
+            return
+        elif key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            self._collapse_selected()
+            return
+        elif key == wx.WXK_SPACE and not evt.HasAnyModifiers():
             self._toggle_or_load_selected()
             return
         elif key == wx.WXK_HOME:
@@ -465,6 +490,35 @@ class BaseScheduleTab(wx.Panel):
                 self._after_nav_update()
             return
         evt.Skip()
+
+    def _advance_from_nav(self) -> None:
+        row = self._get_selected_nav_row()
+        if not row:
+            return
+
+        if row.expandable:
+            if not row.expanded:
+                self._set_nav_expanded(row.key, expanded=True)
+            child_idx = self._find_first_child_index(row.key)
+            if child_idx is not None:
+                self._set_nav_selection(child_idx)
+            return
+
+        if row.data.kind == "pair" and row.data.source and row.data.day:
+            self._list.SetFocus()
+
+    def _set_nav_selection(self, idx: int) -> None:
+        if idx == wx.NOT_FOUND:
+            return
+        if idx < 0 or idx >= self._nav.GetCount():
+            return
+
+        self._suppress_nav_event = True
+        self._nav.SetSelection(idx)
+        self._nav.EnsureVisible(idx)
+        self._suppress_nav_event = False
+        self._on_nav_selection(wx.CommandEvent())
+        self._after_nav_update()
 
     def _toggle_or_load_selected(self) -> None:
         row = self._get_selected_nav_row()
@@ -585,6 +639,9 @@ class BaseScheduleTab(wx.Panel):
             idx = int(self._list.GetSelectedRow())  # type: ignore[attr-defined]
         else:
             idx = wx.NOT_FOUND
+        self._show_item_details(idx)
+
+    def _show_item_details(self, idx: int) -> None:
         if idx < 0:
             return
         if not hasattr(self, "_items") or idx >= len(self._items):
@@ -596,6 +653,45 @@ class BaseScheduleTab(wx.Panel):
             on_success=lambda text: self._details.SetValue(text),
             on_error=self._on_error,
         )
+
+    def _ensure_list_selection(self) -> int | None:
+        idx = self._get_selected_list_index()
+        if idx is not None and idx >= 0:
+            return idx
+        count = int(getattr(self._list, "GetItemCount")())  # type: ignore[misc]
+        if count <= 0:
+            return None
+        self._select_list_index(0)
+        return 0
+
+    def _get_selected_list_index(self) -> int | None:
+        if getattr(self, "_list_is_dataview", False):
+            idx = int(self._list.GetSelectedRow())  # type: ignore[attr-defined]
+            return idx if idx >= 0 else None
+
+        idx = int(self._list.GetNextItem(-1, wx.LIST_NEXT_ALL, wx.LIST_STATE_SELECTED))  # type: ignore[attr-defined]
+        return idx if idx != wx.NOT_FOUND else None
+
+    def _select_list_index(self, idx: int) -> None:
+        if idx < 0:
+            return
+        if getattr(self, "_list_is_dataview", False):
+            self._list.SelectRow(idx)  # type: ignore[attr-defined]
+            try:
+                self._list.EnsureVisible(self._list.RowToItem(idx))  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                pass
+            return
+
+        self._list.SetItemState(  # type: ignore[attr-defined]
+            idx,
+            wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+            wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+        )
+        try:
+            self._list.EnsureVisible(idx)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
 
     def _run_in_thread(
         self,
@@ -949,6 +1045,22 @@ def _format_accessibility(features: tuple[AccessibilityFeature, ...]) -> str:
     return ", ".join(labels)
 
 
+def _format_archive_item_details(item: ScheduleItem) -> str:
+    parts: list[str] = []
+    if item.start_time:
+        parts.append(item.start_time.strftime("%H:%M"))
+    title = item.title
+    if item.subtitle:
+        title = f"{title} — {item.subtitle}"
+    if title:
+        parts.append(title)
+    if item.details_summary:
+        summary = item.details_summary.strip()
+        if summary and summary != (item.subtitle or "").strip():
+            parts.append(summary)
+    return "\n".join([p for p in parts if p]).strip() or "Brak szczegółów."
+
+
 class RadioTab(BaseScheduleTab):
     def __init__(
         self,
@@ -1122,6 +1234,7 @@ class ArchiveTab(wx.Panel):
         self._month_days: dict[str, list[date]] = {}
         self._day_sources: dict[str, list[Source]] = {}
         self._loading: set[str] = set()
+        self._items: list[ScheduleItem] = []
         self._suppress_nav_event = False
 
         self._build_ui()
@@ -1151,29 +1264,53 @@ class ArchiveTab(wx.Panel):
         left_sizer.Add(self._nav, 1, wx.EXPAND)
         left.SetSizer(left_sizer)
 
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-        right_sizer.Add(wx.StaticText(right, label="Programy:"), 0, wx.BOTTOM, 4)
+        right_splitter = wx.SplitterWindow(right, style=wx.SP_LIVE_UPDATE | wx.TAB_TRAVERSAL)
+        right_splitter.SetMinimumPaneSize(140)
+
+        list_panel = wx.Panel(right_splitter, style=wx.TAB_TRAVERSAL)
+        details_panel = wx.Panel(right_splitter, style=wx.TAB_TRAVERSAL)
+        right_splitter.SplitHorizontally(list_panel, details_panel, 360)
+
+        list_sizer = wx.BoxSizer(wx.VERTICAL)
+        list_sizer.Add(wx.StaticText(list_panel, label="Programy:"), 0, wx.BOTTOM, 4)
         self._list_is_dataview = sys.platform == "darwin"
         if self._list_is_dataview:
             self._list = dv.DataViewListCtrl(
-                right,
+                list_panel,
                 style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_VERT_RULES,
             )
             self._list.AppendTextColumn("Od", width=70, mode=dv.DATAVIEW_CELL_INERT)
             self._list.AppendTextColumn("Tytuł", width=740, mode=dv.DATAVIEW_CELL_INERT)
+            self._list.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_item_selected)
         else:
-            self._list = wx.ListCtrl(right, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+            self._list = wx.ListCtrl(list_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
             self._list.InsertColumn(0, "Od", width=70)
             self._list.InsertColumn(1, "Tytuł", width=740)
+            self._list.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_item_selected)
         self._list.SetName("Programy archiwalne")
-        self._list.Bind(wx.EVT_KEY_DOWN, self._on_last_control_key_down)
-        right_sizer.Add(self._list, 1, wx.EXPAND)
+        self._list.Bind(wx.EVT_KEY_DOWN, self._on_list_key_down)
+        list_sizer.Add(self._list, 1, wx.EXPAND)
+        list_panel.SetSizer(list_sizer)
+
+        details_sizer = wx.BoxSizer(wx.VERTICAL)
+        details_sizer.Add(wx.StaticText(details_panel, label="Opis:"), 0, wx.BOTTOM, 4)
+        self._details = wx.TextCtrl(details_panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
+        self._details.Bind(wx.EVT_KEY_DOWN, self._on_last_control_key_down)
+        details_sizer.Add(self._details, 1, wx.EXPAND)
+        details_panel.SetSizer(details_sizer)
+
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_sizer.Add(right_splitter, 1, wx.EXPAND)
         right.SetSizer(right_sizer)
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.SetSizer(root)
 
     def _on_last_control_key_down(self, evt: wx.KeyEvent) -> None:
+        if evt.GetKeyCode() == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            if hasattr(self, "_list"):
+                self._list.SetFocus()
+                return
         if (
             evt.GetKeyCode() == wx.WXK_TAB
             and not evt.ShiftDown()
@@ -1186,6 +1323,20 @@ class ArchiveTab(wx.Panel):
                 return
         evt.Skip()
 
+    def _on_list_key_down(self, evt: wx.KeyEvent) -> None:
+        key = evt.GetKeyCode()
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            idx = self._ensure_list_selection()
+            if idx is None:
+                return
+            self._show_item_details(idx)
+            self._details.SetFocus()
+            return
+        if key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            self._nav.SetFocus()
+            return
+        evt.Skip()
+
     def refresh(self, *, force: bool) -> None:
         selected = self._get_selected_station()
         if not selected:
@@ -1195,6 +1346,8 @@ class ArchiveTab(wx.Panel):
 
     def refresh_all(self, *, force: bool) -> None:
         self._list.DeleteAllItems()
+        if hasattr(self, "_details"):
+            self._details.SetValue("")
         if force:
             self._expanded.clear()
             self._month_days.clear()
@@ -1403,7 +1556,13 @@ class ArchiveTab(wx.Panel):
             if self._collapse_selected():
                 return
             return
-        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+        elif key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            self._advance_from_nav()
+            return
+        elif key == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            self._collapse_selected()
+            return
+        elif key == wx.WXK_SPACE and not evt.HasAnyModifiers():
             self._toggle_or_load_selected()
             return
         elif key == wx.WXK_HOME:
@@ -1416,6 +1575,40 @@ class ArchiveTab(wx.Panel):
                 self._nav.EnsureVisible(count - 1)
             return
         evt.Skip()
+
+    def _advance_from_nav(self) -> None:
+        row = self._get_selected_nav_row()
+        if not row:
+            return
+
+        if row.expandable:
+            if not row.expanded:
+                self._set_expanded(row.key, expanded=True)
+                if row.data:
+                    self._maybe_start_loading(row.data)
+            child_idx = self._find_first_child_index(row.key, skip_placeholders=True)
+            if child_idx is not None:
+                self._set_nav_selection(child_idx)
+            return
+
+        if row.data and row.data.kind == "station" and row.data.source and row.data.day:
+            self._list.SetFocus()
+            return
+
+        if row.is_placeholder:
+            self._show_list_message(row.label)
+
+    def _set_nav_selection(self, idx: int) -> None:
+        if idx == wx.NOT_FOUND:
+            return
+        if idx < 0 or idx >= self._nav.GetCount():
+            return
+
+        self._suppress_nav_event = True
+        self._nav.SetSelection(idx)
+        self._nav.EnsureVisible(idx)
+        self._suppress_nav_event = False
+        self._on_nav_selection(wx.CommandEvent())
 
     def _toggle_or_load_selected(self) -> None:
         row = self._get_selected_nav_row()
@@ -1440,6 +1633,8 @@ class ArchiveTab(wx.Panel):
 
     def _show_list_message(self, message: str) -> None:
         self._list.DeleteAllItems()
+        if hasattr(self, "_details"):
+            self._details.SetValue("")
         self._append_list_row(["", message])
 
     def _expand_selected(self) -> bool:
@@ -1481,7 +1676,7 @@ class ArchiveTab(wx.Panel):
             self._expanded.discard(key)
         self._rebuild_nav(preserve_key=key)
 
-    def _find_first_child_index(self, parent_key: str) -> int | None:
+    def _find_first_child_index(self, parent_key: str, *, skip_placeholders: bool = False) -> int | None:
         parent_idx = self._nav_index_by_key.get(parent_key)
         if parent_idx is None:
             return None
@@ -1491,6 +1686,8 @@ class ArchiveTab(wx.Panel):
             if row.level <= parent_level:
                 break
             if row.parent_key == parent_key:
+                if skip_placeholders and row.is_placeholder:
+                    continue
                 return idx
         return None
 
@@ -1556,6 +1753,8 @@ class ArchiveTab(wx.Panel):
         token = self._request_token
 
         self._list.DeleteAllItems()
+        if hasattr(self, "_details"):
+            self._details.SetValue("")
         self._status_bar.SetStatusText(f"Pobieranie: {source.name} {day.isoformat()}…")
 
         def work() -> list[ScheduleItem]:
@@ -1575,6 +1774,7 @@ class ArchiveTab(wx.Panel):
         self._run_in_thread(work, on_success=on_success, on_error=self._on_error)
 
     def _show_schedule(self, items: list[ScheduleItem]) -> None:
+        self._items = list(items)
         self._list.DeleteAllItems()
         for it in items:
             start = it.start_time.strftime("%H:%M") if it.start_time else ""
@@ -1582,6 +1782,62 @@ class ArchiveTab(wx.Panel):
             if it.subtitle:
                 title = f"{title} — {it.subtitle}"
             self._append_list_row([start, title])
+
+    def _on_item_selected(self, evt: wx.Event) -> None:
+        if hasattr(evt, "GetIndex"):
+            idx = int(evt.GetIndex())  # type: ignore[attr-defined]
+        elif getattr(self, "_list_is_dataview", False):
+            idx = int(self._list.GetSelectedRow())  # type: ignore[attr-defined]
+        else:
+            idx = wx.NOT_FOUND
+        self._show_item_details(idx)
+
+    def _show_item_details(self, idx: int) -> None:
+        if idx < 0:
+            return
+        if not hasattr(self, "_items") or idx >= len(self._items):
+            return
+        item = self._items[idx]
+        self._details.SetValue(_format_archive_item_details(item))
+
+    def _ensure_list_selection(self) -> int | None:
+        idx = self._get_selected_list_index()
+        if idx is not None and idx >= 0:
+            return idx
+        count = int(getattr(self._list, "GetItemCount")())  # type: ignore[misc]
+        if count <= 0:
+            return None
+        self._select_list_index(0)
+        return 0
+
+    def _get_selected_list_index(self) -> int | None:
+        if getattr(self, "_list_is_dataview", False):
+            idx = int(self._list.GetSelectedRow())  # type: ignore[attr-defined]
+            return idx if idx >= 0 else None
+
+        idx = int(self._list.GetNextItem(-1, wx.LIST_NEXT_ALL, wx.LIST_STATE_SELECTED))  # type: ignore[attr-defined]
+        return idx if idx != wx.NOT_FOUND else None
+
+    def _select_list_index(self, idx: int) -> None:
+        if idx < 0:
+            return
+        if getattr(self, "_list_is_dataview", False):
+            self._list.SelectRow(idx)  # type: ignore[attr-defined]
+            try:
+                self._list.EnsureVisible(self._list.RowToItem(idx))  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                pass
+            return
+
+        self._list.SetItemState(  # type: ignore[attr-defined]
+            idx,
+            wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+            wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+        )
+        try:
+            self._list.EnsureVisible(idx)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
 
     def _run_in_thread(
         self,
