@@ -207,7 +207,6 @@ class MainFrame(wx.Frame):
 
         self._notebook = wx.Notebook(panel, style=wx.TAB_TRAVERSAL)
         self._notebook.Bind(wx.EVT_NAVIGATION_KEY, self._on_notebook_navigation_key)
-        install_notebook_accessible(self._notebook)
 
         self._tv_tab = TvTab(
             self._notebook,
@@ -260,6 +259,8 @@ class MainFrame(wx.Frame):
         self._notebook.AddPage(self._favorites_tab, "Ulubione")
         self._notebook.AddPage(self._search_tab, "Wyszukiwanie")
         self._notebook.AddPage(self._archive_tab, "Programy archiwalne")
+
+        install_notebook_accessible(self._notebook)
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)

@@ -318,8 +318,8 @@ class NotebookAccessible(wx.Accessible):
     page tabs to ATs.
     """
 
-    def __init__(self, notebook: wx.Notebook, *, name: str) -> None:
-        super().__init__(notebook)
+    def __init__(self, win: wx.Window, notebook: wx.Notebook, *, name: str) -> None:
+        super().__init__(win)
         self._notebook = notebook
         self._name = name
         self._tab_cache: dict[int, NotebookTabAccessible] = {}
@@ -379,8 +379,20 @@ class NotebookAccessible(wx.Accessible):
 def install_notebook_accessible(notebook: wx.Notebook, *, name: str = "Zakładki") -> None:
     if wx.Platform != "__WXMSW__":
         return
-    existing = notebook.GetAccessible()
-    if isinstance(existing, NotebookAccessible):
-        return
     notebook.SetName(name)
-    notebook.SetAccessible(NotebookAccessible(notebook, name=name))
+
+    def install_on(win: wx.Window) -> None:
+        existing = win.GetAccessible()
+        if isinstance(existing, NotebookAccessible):
+            return
+        win.SetAccessible(NotebookAccessible(win, notebook, name=name))
+
+    install_on(notebook)
+
+    page_windows = {notebook.GetPage(i) for i in range(notebook.GetPageCount())}
+    for child in notebook.GetChildren():
+        # Avoid overriding the pages' own accessibility. We only want the
+        # notebook/tab-strip windows to expose a clean tab list.
+        if child in page_windows:
+            continue
+        install_on(child)
