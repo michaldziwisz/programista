@@ -295,6 +295,7 @@ class SearchTab(BaseScheduleTab):
 
         for cb in (self._tv_cb, self._radio_cb, self._tv_a11y_cb, self._archive_cb):
             cb.Bind(wx.EVT_CHECKBOX, self._on_filter_changed)
+            cb.Bind(wx.EVT_KEY_DOWN, self._on_filter_key_down)
             filters_box.Add(cb, 0, wx.ALL, 4)
 
         panel.Add(filters_box, 0, wx.EXPAND | wx.BOTTOM, 6)
@@ -312,6 +313,14 @@ class SearchTab(BaseScheduleTab):
         panel.Add(results_row, 0, wx.EXPAND)
 
         header.Add(panel, 1, wx.EXPAND)
+
+    def _on_filter_key_down(self, evt: wx.KeyEvent) -> None:
+        key = evt.GetKeyCode()
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            if hasattr(self, "_search_btn") and self._search_btn.IsEnabled():
+                self._search_btn.SetFocus()
+                return
+        evt.Skip()
 
     def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
