@@ -22,7 +22,6 @@ from tvguide_app.core.providers.teleman import TelemanProvider
 from tvguide_app.core.schedule_cache import CachedArchiveProvider, CachedScheduleProvider
 from tvguide_app.core.search_index import SearchIndex
 from tvguide_app.core.settings import SettingsStore
-from tvguide_app.gui.accessibility import install_notebook_accessible
 from tvguide_app.gui.search_tab import SearchTab
 from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
@@ -205,7 +204,12 @@ class MainFrame(wx.Frame):
         panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self._notebook = wx.Notebook(panel, style=wx.TAB_TRAVERSAL)
+        notebook_style = wx.NB_TOP
+        # Avoid tab scrolling buttons in the native control; some ATs miscount
+        # tabs when the notebook overflows.
+        if wx.Platform == "__WXMSW__":
+            notebook_style |= wx.NB_MULTILINE
+        self._notebook = wx.Notebook(panel, style=notebook_style)
         self._notebook.Bind(wx.EVT_NAVIGATION_KEY, self._on_notebook_navigation_key)
 
         self._tv_tab = TvTab(
@@ -259,8 +263,6 @@ class MainFrame(wx.Frame):
         self._notebook.AddPage(self._favorites_tab, "Ulubione")
         self._notebook.AddPage(self._search_tab, "Wyszukiwanie")
         self._notebook.AddPage(self._archive_tab, "Programy archiwalne")
-
-        install_notebook_accessible(self._notebook)
 
         sizer.Add(self._notebook, 1, wx.EXPAND)
         panel.SetSizer(sizer)
