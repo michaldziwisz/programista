@@ -252,7 +252,11 @@ class NotebookTabAccessible(wx.Accessible):
         nb = self._root._notebook
         if not nb or self._idx < 0 or self._idx >= nb.GetPageCount():
             return ""
-        return nb.GetPageText(self._idx) or ""
+        label = nb.GetPageText(self._idx) or ""
+        count = nb.GetPageCount()
+        if label and count > 0:
+            return f"{label} ({self._idx + 1} z {count})"
+        return label
 
     def GetName(self, childId: int):  # noqa: N802
         if childId != 0:
@@ -334,6 +338,9 @@ class NotebookAccessible(wx.Accessible):
 
     def GetName(self, childId: int):  # noqa: N802
         if childId == 0:
+            count = self._notebook.GetPageCount() if self._notebook else 0
+            if count > 0:
+                return wx.ACC_OK, f"{self._name} ({count})"
             return wx.ACC_OK, self._name
         idx = childId - 1
         if not self._notebook or idx < 0 or idx >= self._notebook.GetPageCount():
