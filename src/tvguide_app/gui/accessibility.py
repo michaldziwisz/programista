@@ -252,11 +252,7 @@ class NotebookTabAccessible(wx.Accessible):
         nb = self._root._notebook
         if not nb or self._idx < 0 or self._idx >= nb.GetPageCount():
             return ""
-        label = nb.GetPageText(self._idx) or ""
-        count = nb.GetPageCount()
-        if label and count > 0:
-            return f"{label} ({self._idx + 1} z {count})"
-        return label
+        return nb.GetPageText(self._idx) or ""
 
     def GetName(self, childId: int):  # noqa: N802
         if childId != 0:
@@ -279,7 +275,8 @@ class NotebookTabAccessible(wx.Accessible):
         state = wx.ACC_STATE_SYSTEM_FOCUSABLE | wx.ACC_STATE_SYSTEM_SELECTABLE
         if nb.GetSelection() == self._idx:
             state |= wx.ACC_STATE_SYSTEM_SELECTED
-            if nb.HasFocus():
+            win = self.GetWindow()
+            if (win and win.HasFocus()) or nb.HasFocus():
                 state |= wx.ACC_STATE_SYSTEM_FOCUSED
         return wx.ACC_OK, state
 
@@ -338,18 +335,11 @@ class NotebookAccessible(wx.Accessible):
 
     def GetName(self, childId: int):  # noqa: N802
         if childId == 0:
-            count = self._notebook.GetPageCount() if self._notebook else 0
-            if count > 0:
-                return wx.ACC_OK, f"{self._name} ({count})"
             return wx.ACC_OK, self._name
         idx = childId - 1
         if not self._notebook or idx < 0 or idx >= self._notebook.GetPageCount():
             return wx.ACC_INVALID_ARG, ""
-        label = self._notebook.GetPageText(idx) or ""
-        count = self._notebook.GetPageCount()
-        if label and count > 0:
-            return wx.ACC_OK, f"{label} ({idx + 1} z {count})"
-        return wx.ACC_OK, label
+        return wx.ACC_OK, self._notebook.GetPageText(idx) or ""
 
     def GetRole(self, childId: int):  # noqa: N802
         if childId == 0:
@@ -361,7 +351,8 @@ class NotebookAccessible(wx.Accessible):
 
     def GetState(self, _childId: int):  # noqa: N802
         state = wx.ACC_STATE_SYSTEM_FOCUSABLE
-        if self._notebook and self._notebook.HasFocus():
+        win = self.GetWindow()
+        if (win and win.HasFocus()) or (self._notebook and self._notebook.HasFocus()):
             state |= wx.ACC_STATE_SYSTEM_FOCUSED
         return wx.ACC_OK, state
 
@@ -385,6 +376,14 @@ class NotebookAccessible(wx.Accessible):
         if idx is None or idx < 0:
             return wx.ACC_FAIL, None
         return wx.ACC_OK, self._tab(idx)
+
+    def GetSelections(self, *args, **kwargs):  # noqa: N802
+        if not self._notebook:
+            return wx.ACC_FAIL, None
+        idx = self._notebook.GetSelection()
+        if idx is None or idx < 0:
+            return wx.ACC_OK, []
+        return wx.ACC_OK, [self._tab(idx)]
 
 
 def install_notebook_accessible(notebook: wx.Notebook, *, name: str = "Zakładki") -> None:
