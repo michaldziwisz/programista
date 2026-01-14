@@ -464,6 +464,10 @@ class BaseScheduleTab(wx.Panel):
 
     def _on_nav_key_down(self, evt: wx.KeyEvent) -> None:
         key = evt.GetKeyCode()
+        if key == wx.WXK_TAB and not evt.ControlDown() and not evt.AltDown():
+            direction = wx.NavigationKeyEvent.IsBackward if evt.ShiftDown() else wx.NavigationKeyEvent.IsForward
+            self._nav.Navigate(flags=direction)
+            return
         if key == wx.WXK_RIGHT:
             if self._expand_selected():
                 return
@@ -1558,6 +1562,10 @@ class ArchiveTab(wx.Panel):
 
     def _on_nav_key_down(self, evt: wx.KeyEvent) -> None:
         key = evt.GetKeyCode()
+        if key == wx.WXK_TAB and not evt.ControlDown() and not evt.AltDown():
+            direction = wx.NavigationKeyEvent.IsBackward if evt.ShiftDown() else wx.NavigationKeyEvent.IsForward
+            self._nav.Navigate(flags=direction)
+            return
         if key == wx.WXK_RIGHT:
             if self._expand_selected():
                 return
