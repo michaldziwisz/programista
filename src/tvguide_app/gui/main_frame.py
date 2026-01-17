@@ -23,6 +23,7 @@ from tvguide_app.core.schedule_cache import CachedArchiveProvider, CachedSchedul
 from tvguide_app.core.search_index import SearchIndex
 from tvguide_app.core.settings import SettingsStore
 from tvguide_app.gui.accessibility import install_notebook_accessible
+from tvguide_app.gui.feedback_dialog import FeedbackDialog
 from tvguide_app.gui.search_tab import SearchTab
 from tvguide_app.gui.schedule_tabs import ArchiveTab, FavoritesTab, RadioTab, TvAccessibilityTab, TvTab
 
@@ -199,7 +200,20 @@ class MainFrame(wx.Frame):
 
         menubar.Append(file_menu, "Plik")
         menubar.Append(data_menu, "Dane")
+
+        help_menu = wx.Menu()
+        feedback_item = help_menu.Append(wx.ID_ANY, "Zgłoś błąd / sugestię…")
+        self.Bind(wx.EVT_MENU, self._on_send_feedback, feedback_item)
+        menubar.Append(help_menu, "Pomoc")
+
         self.SetMenuBar(menubar)
+
+    def _on_send_feedback(self, _evt: wx.CommandEvent) -> None:
+        dlg = FeedbackDialog(self, app_version=self._app_version())
+        try:
+            dlg.ShowModal()
+        finally:
+            dlg.Destroy()
 
     def _build_ui(self) -> None:
         panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
