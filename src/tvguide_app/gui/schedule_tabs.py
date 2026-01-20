@@ -59,6 +59,7 @@ class BaseScheduleTab(wx.Panel):
         self._view_mode: ViewMode = "by_source"
         self._request_token = 0
         self._show_end_time = True
+        self._source_filter_query = ""
 
         self._sources: list[Source] = []
         self._days: list[date] = []
@@ -72,6 +73,16 @@ class BaseScheduleTab(wx.Panel):
 
         self._build_ui()
         self.refresh_all(force=False)
+
+    def _supports_source_filter(self) -> bool:
+        return self._search_kind in ("tv", "radio")
+
+    def _filtered_sources(self, sources: list[Source]) -> list[Source]:
+        query = self._source_filter_query
+        if not query:
+            return sources
+        needle = query.casefold()
+        return [src for src in sources if needle in src.name.casefold()]
 
     def _after_nav_update(self) -> None:
         return
@@ -98,6 +109,20 @@ class BaseScheduleTab(wx.Panel):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         left_sizer.Add(wx.StaticText(left, label="Nawigacja:"), 0, wx.BOTTOM, 4)
+        if self._supports_source_filter():
+            filter_sizer = wx.BoxSizer(wx.HORIZONTAL)
+            filter_sizer.Add(wx.StaticText(left, label="Filtr stacji:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+            self._source_filter = wx.TextCtrl(left)
+            self._source_filter.SetName("Filtr stacji")
+            try:
+                self._source_filter.SetHint("Wpisz nazwę…")
+            except Exception:  # noqa: BLE001
+                pass
+            self._source_filter.Bind(wx.EVT_TEXT, self._on_source_filter_changed)
+            self._source_filter.Bind(wx.EVT_KEY_DOWN, self._on_source_filter_key_down)
+            filter_sizer.Add(self._source_filter, 1, wx.EXPAND)
+            left_sizer.Add(filter_sizer, 0, wx.EXPAND | wx.BOTTOM, 6)
+
         self._nav = wx.ListBox(left, style=wx.LB_SINGLE | wx.LB_HSCROLL | wx.WANTS_CHARS)
         self._nav.Bind(wx.EVT_LISTBOX, self._on_nav_selection)
         self._nav.Bind(wx.EVT_LISTBOX_DCLICK, self._on_nav_activate)
@@ -148,6 +173,28 @@ class BaseScheduleTab(wx.Panel):
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.SetSizer(root)
+
+    def _on_source_filter_changed(self, _evt: wx.CommandEvent) -> None:
+        if not hasattr(self, "_source_filter"):
+            return
+        query = " ".join(str(self._source_filter.GetValue() or "").split())
+        if query == self._source_filter_query:
+            return
+        self._source_filter_query = query
+        self._rebuild_nav()
+
+    def _on_source_filter_key_down(self, evt: wx.KeyEvent) -> None:
+        if evt.GetKeyCode() == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
+            if hasattr(self, "_source_filter"):
+                self._source_filter.SetValue("")
+            self._nav.SetFocus()
+            return
+        if evt.GetKeyCode() in (wx.WXK_DOWN, wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
+            self._nav.SetFocus()
+            if self._nav.GetSelection() == wx.NOT_FOUND:
+                self._select_first_nav_item()
+            return
+        evt.Skip()
 
     def _on_last_control_key_down(self, evt: wx.KeyEvent) -> None:
         if evt.GetKeyCode() == wx.WXK_ESCAPE and not evt.HasAnyModifiers():
@@ -301,7 +348,8 @@ class BaseScheduleTab(wx.Panel):
         self._rebuild_nav()
 
     def _nav_root_sources(self) -> list[Source]:
-        return self._sources
+        sources = self._sources
+        return self._filtered_sources(sources) if self._supports_source_filter() else sources
 
     def _nav_root_days(self) -> list[date]:
         return self._days
@@ -316,7 +364,8 @@ class BaseScheduleTab(wx.Panel):
 
     def _nav_child_sources_for_day(self, day: date) -> list[Source]:
         if not self._days_by_provider_id:
-            return self._sources
+            sources = self._sources
+            return self._filtered_sources(sources) if self._supports_source_filter() else sources
 
         out: list[Source] = []
         for src in self._sources:
@@ -326,7 +375,7 @@ class BaseScheduleTab(wx.Panel):
                 continue
             if day in self._days_by_provider_id[pid]:
                 out.append(src)
-        return out
+        return self._filtered_sources(out) if self._supports_source_filter() else out
 
     def _rebuild_nav(self) -> None:
         selected_key = self._get_selected_nav_key()
