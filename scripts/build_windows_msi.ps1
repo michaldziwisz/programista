@@ -58,12 +58,26 @@ if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
     throw "Nie znaleziono narzędzia 'dotnet' potrzebnego do instalacji WiX Toolset."
   }
   & dotnet tool install --global wix | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw "dotnet tool install wix failed with exit code $LASTEXITCODE"
+  }
+}
+
+$wixVersionRaw = (& wix --version 2>$null | Select-Object -First 1).Trim()
+$wixVersion = ($wixVersionRaw -split "[^0-9\\.]")[0]
+if (-not $wixVersion) {
+  throw "Nie udało się odczytać wersji WiX Toolset (wix --version)."
 }
 
 try {
-  & wix extension add WixToolset.UI.wixext | Out-Host
+  & wix extension remove WixToolset.UI.wixext | Out-Host
 } catch {
-  # Extension may already be installed.
+  # Not installed yet.
+}
+
+& wix extension add "WixToolset.UI.wixext/$wixVersion" | Out-Host
+if ($LASTEXITCODE -ne 0) {
+  throw "wix extension add WixToolset.UI.wixext/$wixVersion failed with exit code $LASTEXITCODE"
 }
 
 $wxs = Join-Path $root "installer\\wix\\Programista.wxs"
@@ -75,5 +89,8 @@ $wxs = Join-Path $root "installer\\wix\\Programista.wxs"
   -d SourceExe=$SourceExe `
   -o $OutMsi
 
-Write-Output "Built MSI: $OutMsi"
+if ($LASTEXITCODE -ne 0) {
+  throw "wix build failed with exit code $LASTEXITCODE"
+}
 
+Write-Output "Built MSI: $OutMsi"
