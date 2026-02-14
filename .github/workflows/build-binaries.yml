@@ -243,6 +243,7 @@ jobs:
           gh release upload "${{ inputs.tag }}" `
             "tools/out/programista-win-arm64.exe" `
             "tools/out/programista-win-arm64.msi" `
+            --repo "${{ github.repository }}" `
             --clobber
 
   backfill-windows-x64-installer:
@@ -317,4 +318,5 @@ jobs:
           gh release upload "${{ inputs.tag }}" `
             "tools/out/programista-win-x64.exe" `
             "tools/out/programista-win-x64.msi" `
+            --repo "${{ github.repository }}" `
             --clobber
