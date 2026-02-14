@@ -7,7 +7,9 @@ mkdir -p "$DIST_DIR"
 
 TAG="${1:-latest}"
 ARCH="${2:-auto}"
+FORMAT="${3:-exe}"
 ARCH="$(printf '%s' "$ARCH" | tr '[:upper:]' '[:lower:]')"
+FORMAT="$(printf '%s' "$FORMAT" | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$ARCH" == "auto" ]]; then
   case "$(uname -m)" in
@@ -23,13 +25,30 @@ else
   BASE_URL="https://github.com/michaldziwisz/programista/releases/download/${TAG}"
 fi
 
+case "$FORMAT" in
+  exe|msi)
+    ;;
+  *)
+    echo "Nieznany format: '$FORMAT' (użyj: exe|msi)" >&2
+    exit 2
+    ;;
+esac
+
 case "$ARCH" in
   arm64)
-    # Prefer native ARM64, but fall back to x64 if release doesn't ship ARM64 yet.
-    CANDIDATES=("programista-win-arm64.exe" "programista-arm64.exe" "programista-win-x64.exe" "programista.exe")
+    if [[ "$FORMAT" == "msi" ]]; then
+      CANDIDATES=("programista-win-arm64.msi" "programista-win-x64.msi")
+    else
+      # Prefer native ARM64, but fall back to x64 if release doesn't ship ARM64 yet.
+      CANDIDATES=("programista-win-arm64.exe" "programista-arm64.exe" "programista-win-x64.exe" "programista.exe")
+    fi
     ;;
   x64)
-    CANDIDATES=("programista-win-x64.exe" "programista.exe")
+    if [[ "$FORMAT" == "msi" ]]; then
+      CANDIDATES=("programista-win-x64.msi")
+    else
+      CANDIDATES=("programista-win-x64.exe" "programista.exe")
+    fi
     ;;
   *)
     echo "Nieznana architektura: '$ARCH' (użyj: auto|x64|arm64)" >&2
@@ -37,8 +56,8 @@ case "$ARCH" in
     ;;
 esac
 
-OUT_TMP="$DIST_DIR/programista.exe.tmp"
-OUT="$DIST_DIR/programista.exe"
+OUT_TMP="$DIST_DIR/programista.${FORMAT}.tmp"
+OUT="$DIST_DIR/programista.${FORMAT}"
 
 for FILE in "${CANDIDATES[@]}"; do
   URL="${BASE_URL}/${FILE}"
@@ -47,10 +66,10 @@ for FILE in "${CANDIDATES[@]}"; do
   rm -f "$OUT_TMP"
   if curl -fL --retry 3 --retry-delay 2 -o "$OUT_TMP" "$URL"; then
     mv -f "$OUT_TMP" "$OUT" || {
-      echo "Nie mogę nadpisać: $OUT (zamknij uruchomione programista.exe i spróbuj ponownie)" >&2
+      echo "Nie mogę nadpisać: $OUT (zamknij uruchomioną aplikację / zwolnij blokadę pliku i spróbuj ponownie)" >&2
       exit 1
     }
-    if [[ "$ARCH" == "arm64" && "$FILE" != *arm64* ]]; then
+    if [[ "$FORMAT" == "exe" && "$ARCH" == "arm64" && "$FILE" != *arm64* ]]; then
       echo "Uwaga: brak natywnej binarki ARM64 w tym release — pobrano wariant x64 (emulacja)." >&2
     fi
     echo "Gotowe: $OUT (źródło: $FILE)"

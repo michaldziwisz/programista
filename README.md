@@ -26,6 +26,7 @@ Priorytety: 100% natywne kontrolki (wxPython), dostępność, cache w SQLite, mo
 W WSL możesz pobrać binarkę do `dist-windows/programista.exe`:
 - najnowsza (auto wykrycie arch): `bash scripts/download_windows_release.sh`
 - wymuszenie arch: `bash scripts/download_windows_release.sh latest arm64` albo `bash scripts/download_windows_release.sh latest x64`
+- instalator MSI: `bash scripts/download_windows_release.sh latest arm64 msi` (zapisze do `dist-windows/programista.msi`)
 
 Albo konkretny tag:
 - `bash scripts/download_windows_release.sh v0.1.3 arm64`
@@ -34,3 +35,9 @@ Windows na ARM (np. Parallels na Apple Silicon): jeśli release nie zawiera naty
 
 Build lokalny (Windows / PowerShell):
 - `powershell -ExecutionPolicy Bypass -File scripts\\build_windows.ps1 -Arch arm64`
+
+## Instalator (Windows MSI) + aktualizacje
+
+Docelowo do dystrybucji w Microsoft Store i WinGet najwygodniejszy jest instalator MSI (osobno dla `x64` i `arm64`).
+
+W aplikacji jest pozycja menu: **Pomoc → Sprawdź aktualizacje programu…** — sprawdza GitHub Releases i (na Windows) potrafi pobrać oraz uruchomić instalator.

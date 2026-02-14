@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Programista"
+    Manufacturer="Programista"
+    Version="$(var.AppVersion)"
+    UpgradeCode="{9B8B9D0A-3F62-4D32-8A4A-2E6DE1A9C4D0}"
+    InstallScope="perUser"
+    InstallPrivileges="limited"
+    Compressed="yes"
+  >
+    <MajorUpgrade DowngradeErrorMessage="Nowsza wersja Programista jest już zainstalowana." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="Programista" Level="1">
+      <ComponentRef Id="ProgramistaComponent" />
+    </Feature>
+
+    <UIRef Id="WixUI_Minimal" />
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Programista" />
+      </Directory>
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramistaMenuFolder" Name="Programista" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <Component
+      Id="ProgramistaComponent"
+      Guid="{6E0D32A6-9F58-4E29-97C1-255BD41EEC2C}"
+      Directory="INSTALLFOLDER"
+    >
+      <File Id="ProgramistaExe" Name="programista.exe" Source="$(var.SourceExe)" />
+      <Shortcut
+        Id="ProgramistaStartMenu"
+        Directory="ProgramistaMenuFolder"
+        Name="Programista"
+        Target="[INSTALLFOLDER]programista.exe"
+        WorkingDirectory="INSTALLFOLDER"
+        Advertise="no"
+      />
+      <RemoveFolder Id="RemoveProgramistaMenuFolder" Directory="ProgramistaMenuFolder" On="uninstall" />
+    </Component>
+  </Fragment>
+</Wix>
+

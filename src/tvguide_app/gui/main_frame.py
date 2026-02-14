@@ -12,6 +12,7 @@ from tvguide_app.core.cache import SqliteCache
 from tvguide_app.core.favorites import FavoritesStore
 from tvguide_app.core.hub_api import HubClient
 from tvguide_app.core.http import HttpClient
+from tvguide_app.core.app_updates import check_for_app_update
 from tvguide_app.core.provider_packs.loader import PackStore
 from tvguide_app.core.provider_packs.service import ProviderPackService
 from tvguide_app.core.provider_packs.wrappers import EmptyScheduleProvider
@@ -204,6 +205,9 @@ class MainFrame(wx.Frame):
         help_menu = wx.Menu()
         feedback_item = help_menu.Append(wx.ID_ANY, "Zgłoś błąd / sugestię…")
         self.Bind(wx.EVT_MENU, self._on_send_feedback, feedback_item)
+
+        update_item = help_menu.Append(wx.ID_ANY, "Sprawdź aktualizacje programu…")
+        self.Bind(wx.EVT_MENU, self._on_check_app_update, update_item)
         menubar.Append(help_menu, "Pomoc")
 
         self.SetMenuBar(menubar)
@@ -214,6 +218,95 @@ class MainFrame(wx.Frame):
             dlg.ShowModal()
         finally:
             dlg.Destroy()
+
+    def _on_check_app_update(self, _evt: wx.CommandEvent) -> None:
+        self._status_bar.SetStatusText("Sprawdzanie aktualizacji programu…")
+        self._run_in_thread(
+            lambda: check_for_app_update(
+                self._http,
+                current_version=self._app_version(),
+                force_refresh=True,
+            ),
+            on_success=self._on_app_update_checked,
+            on_error=self._on_app_update_error,
+        )
+
+    def _on_app_update_checked(self, result) -> None:
+        self._status_bar.SetStatusText("Gotowe.")
+        msg = getattr(result, "message", "") or "Gotowe."
+
+        if not getattr(result, "update_available", False):
+            wx.MessageBox(msg, "Aktualizacje", parent=self, style=wx.ICON_INFORMATION)
+            return
+
+        installer_url = getattr(result, "installer_url", None)
+        release_url = getattr(result, "release_url", None)
+        details = msg
+        if not installer_url:
+            details += "\n\nNie znaleziono instalatora dla tej platformy. Otworzyć stronę wydania?"
+            dlg = wx.MessageDialog(self, details, "Aktualizacja", style=wx.YES_NO | wx.ICON_INFORMATION)
+            try:
+                if dlg.ShowModal() == wx.ID_YES and release_url:
+                    wx.LaunchDefaultBrowser(release_url)
+            finally:
+                dlg.Destroy()
+            return
+
+        details += "\n\nPobrać i uruchomić instalator teraz?"
+        dlg = wx.MessageDialog(self, details, "Aktualizacja", style=wx.YES_NO | wx.ICON_INFORMATION)
+        try:
+            if dlg.ShowModal() != wx.ID_YES:
+                return
+        finally:
+            dlg.Destroy()
+
+        self._status_bar.SetStatusText("Pobieranie aktualizacji…")
+        self._run_in_thread(
+            lambda: self._download_and_run_installer(installer_url),
+            on_success=lambda _res: None,
+            on_error=self._on_app_update_error,
+        )
+
+    def _on_app_update_error(self, exc: Exception) -> None:
+        msg = str(exc) or "Nieznany błąd."
+        self._status_bar.SetStatusText(f"Błąd aktualizacji: {msg}")
+        wx.MessageBox(msg, "Błąd aktualizacji", parent=self, style=wx.ICON_ERROR)
+
+    def _download_and_run_installer(self, url: str) -> None:
+        import os
+        from pathlib import Path
+        import subprocess
+        import tempfile
+
+        import requests
+
+        tmp_dir = Path(tempfile.gettempdir()) / "programista-updates"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = url.rsplit("/", 1)[-1] or "programista-update"
+        dest = tmp_dir / filename
+        tmp = tmp_dir / f"{filename}.tmp"
+
+        sess = requests.Session()
+        sess.headers.update({"User-Agent": f"programista/{self._app_version()} (+app-updater)"})
+        with sess.get(url, stream=True, timeout=30) as resp:
+            resp.raise_for_status()
+            with tmp.open("wb") as f:
+                for chunk in resp.iter_content(chunk_size=1024 * 256):
+                    if chunk:
+                        f.write(chunk)
+        tmp.replace(dest)
+
+        # Launch installer and exit the app to avoid locked files.
+        cmd: list[str]
+        suffix = dest.suffix.lower()
+        if suffix == ".msi":
+            cmd = ["msiexec", "/i", str(dest), "/passive", "/norestart"]
+        else:
+            cmd = [str(dest)]
+
+        subprocess.Popen(cmd, close_fds=(os.name != "nt"))  # noqa: S603
+        wx.CallAfter(self.Close, True)
 
     def _build_ui(self) -> None:
         panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)

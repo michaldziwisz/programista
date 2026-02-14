@@ -55,6 +55,16 @@ jobs:
           cp "dist/programista.exe" "out/programista.exe"
           cp "dist/programista.exe" "out/programista-win-x64.exe"
 
+      - name: Build installer (MSI)
+        shell: pwsh
+        run: |
+          $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
+          ./scripts/build_windows_msi.ps1 `
+            -Arch x64 `
+            -Version $ver `
+            -SourceExe dist\\programista.exe `
+            -OutMsi out\\programista-win-x64.msi
+
       - name: Upload to GitHub Release (tag)
         uses: softprops/action-gh-release@v2
         with:
@@ -98,6 +108,16 @@ jobs:
         run: |
           mkdir -p out
           cp "dist/programista.exe" "out/programista-win-arm64.exe"
+
+      - name: Build installer (MSI)
+        shell: pwsh
+        run: |
+          $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
+          ./scripts/build_windows_msi.ps1 `
+            -Arch arm64 `
+            -Version $ver `
+            -SourceExe dist\\programista.exe `
+            -OutMsi out\\programista-win-arm64.msi
 
       - name: Upload to GitHub Release (tag)
         uses: softprops/action-gh-release@v2
@@ -152,7 +172,7 @@ jobs:
           files: out/*
 
   backfill-windows-arm64:
-    name: Backfill Windows ARM64 binary
+    name: Backfill Windows ARM64 binary (and MSI)
     if: github.event_name == 'workflow_dispatch' && !github.event.repository.private
     runs-on: windows-11-arm
     steps:
@@ -193,8 +213,72 @@ jobs:
           mkdir -p out
           cp "dist/programista.exe" "out/programista-win-arm64.exe"
 
+      - name: Build installer (MSI)
+        shell: pwsh
+        run: |
+          $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
+          ./scripts/build_windows_msi.ps1 `
+            -Arch arm64 `
+            -Version $ver `
+            -SourceExe dist\\programista.exe `
+            -OutMsi out\\programista-win-arm64.msi
+
       - name: Upload to GitHub Release (backfill)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: out/programista-win-arm64.exe
+          files: |
+            out/programista-win-arm64.exe
+            out/programista-win-arm64.msi
+
+  backfill-windows-x64-installer:
+    name: Backfill Windows x64 MSI
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e ".[dev,gui]"
+          python -m pip install -U pyinstaller
+
+      - name: Tests
+        run: |
+          pytest -q
+
+      - name: Build (PyInstaller)
+        shell: bash
+        run: |
+          rm -rf build dist
+          python -m PyInstaller \
+            --noconfirm \
+            --clean \
+            --name "programista" \
+            --windowed \
+            --onefile \
+            run_programista.py
+
+      - name: Build installer (MSI)
+        shell: pwsh
+        run: |
+          $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
+          ./scripts/build_windows_msi.ps1 `
+            -Arch x64 `
+            -Version $ver `
+            -SourceExe dist\\programista.exe `
+            -OutMsi out\\programista-win-x64.msi
+
+      - name: Upload to GitHub Release (backfill)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: out/programista-win-x64.msi
