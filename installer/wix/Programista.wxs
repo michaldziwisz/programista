@@ -5,8 +5,7 @@
     Manufacturer="Programista"
     Version="$(var.AppVersion)"
     UpgradeCode="{9B8B9D0A-3F62-4D32-8A4A-2E6DE1A9C4D0}"
-    InstallScope="perUser"
-    InstallPrivileges="limited"
+    Scope="perUser"
     Compressed="yes"
   >
     <MajorUpgrade DowngradeErrorMessage="Nowsza wersja Programista jest już zainstalowana." />
@@ -52,4 +51,3 @@
     </Component>
   </Fragment>
 </Wix>
-
