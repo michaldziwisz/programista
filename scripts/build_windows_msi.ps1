@@ -63,28 +63,10 @@ if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
   }
 }
 
-$wixVersionRaw = (& wix --version 2>$null | Select-Object -First 1).Trim()
-$wixVersion = ($wixVersionRaw -split "[^0-9\\.]")[0]
-if (-not $wixVersion) {
-  throw "Nie udało się odczytać wersji WiX Toolset (wix --version)."
-}
-
-try {
-  & wix extension remove WixToolset.UI.wixext | Out-Host
-} catch {
-  # Not installed yet.
-}
-
-& wix extension add "WixToolset.UI.wixext/$wixVersion" | Out-Host
-if ($LASTEXITCODE -ne 0) {
-  throw "wix extension add WixToolset.UI.wixext/$wixVersion failed with exit code $LASTEXITCODE"
-}
-
 $wxs = Join-Path $root "installer\\wix\\Programista.wxs"
 & wix build `
   $wxs `
   -arch $Arch `
-  -ext WixToolset.UI.wixext `
   -d AppVersion=$appVersion `
   -d SourceExe=$SourceExe `
   -o $OutMsi

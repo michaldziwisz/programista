@@ -14,8 +14,6 @@
     <Feature Id="MainFeature" Title="Programista" Level="1">
       <ComponentRef Id="ProgramistaComponent" />
     </Feature>
-
-    <UIRef Id="WixUI_Minimal" />
   </Package>
 
   <Fragment>
