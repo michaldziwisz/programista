@@ -217,6 +217,12 @@ jobs:
             --onefile \
             run_programista.py
 
+      - name: Package artifact (Windows ARM64)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path tools\\out | Out-Null
+          Copy-Item -Force app\\dist\\programista.exe tools\\out\\programista-win-arm64.exe
+
       - name: Build installer (MSI)
         shell: pwsh
         run: |
@@ -230,10 +236,14 @@ jobs:
             -OutMsi out\\programista-win-arm64.msi
 
       - name: Upload to GitHub Release (backfill)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag }}
-          files: tools/out/programista-win-arm64.msi
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ inputs.tag }}" `
+            "tools/out/programista-win-arm64.exe" `
+            "tools/out/programista-win-arm64.msi" `
+            --clobber
 
   backfill-windows-x64-installer:
     name: Backfill Windows x64 MSI
@@ -281,6 +291,12 @@ jobs:
             --onefile \
             run_programista.py
 
+      - name: Package artifact (Windows x64)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path tools\\out | Out-Null
+          Copy-Item -Force app\\dist\\programista.exe tools\\out\\programista-win-x64.exe
+
       - name: Build installer (MSI)
         shell: pwsh
         run: |
@@ -294,7 +310,11 @@ jobs:
             -OutMsi out\\programista-win-x64.msi
 
       - name: Upload to GitHub Release (backfill)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag }}
-          files: tools/out/programista-win-x64.msi
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ inputs.tag }}" `
+            "tools/out/programista-win-x64.exe" `
+            "tools/out/programista-win-x64.msi" `
+            --clobber

@@ -41,3 +41,7 @@ Build lokalny (Windows / PowerShell):
 Docelowo do dystrybucji w Microsoft Store i WinGet najwygodniejszy jest instalator MSI (osobno dla `x64` i `arm64`).
 
 W aplikacji jest pozycja menu: **Pomoc → Sprawdź aktualizacje programu…** — sprawdza GitHub Releases i (na Windows) potrafi pobrać oraz uruchomić instalator.
+
+## Licencja
+
+MIT — zob. `LICENSE`.
