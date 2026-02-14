@@ -301,7 +301,7 @@ class MainFrame(wx.Frame):
         cmd: list[str]
         suffix = dest.suffix.lower()
         if suffix == ".msi":
-            cmd = ["msiexec", "/i", str(dest), "/norestart"]
+            cmd = ["msiexec", "/i", str(dest), "/passive", "/norestart"]
         else:
             cmd = [str(dest)]
 
