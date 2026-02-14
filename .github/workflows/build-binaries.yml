@@ -226,8 +226,8 @@ jobs:
           ./tools/scripts/build_windows_msi.ps1 `
             -Arch arm64 `
             -Version $ver `
-            -SourceExe app\\dist\\programista.exe `
-            -OutMsi tools\\out\\programista-win-arm64.msi
+            -SourceExe ..\\app\\dist\\programista.exe `
+            -OutMsi out\\programista-win-arm64.msi
 
       - name: Upload to GitHub Release (backfill)
         uses: softprops/action-gh-release@v2
@@ -290,8 +290,8 @@ jobs:
           ./tools/scripts/build_windows_msi.ps1 `
             -Arch x64 `
             -Version $ver `
-            -SourceExe app\\dist\\programista.exe `
-            -OutMsi tools\\out\\programista-win-x64.msi
+            -SourceExe ..\\app\\dist\\programista.exe `
+            -OutMsi out\\programista-win-x64.msi
 
       - name: Upload to GitHub Release (backfill)
         uses: softprops/action-gh-release@v2
