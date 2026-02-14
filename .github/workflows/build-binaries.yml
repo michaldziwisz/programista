@@ -171,8 +171,8 @@ jobs:
         with:
           files: out/*
 
-  backfill-windows-arm64:
-    name: Backfill Windows ARM64 binary (and MSI)
+  backfill-windows-arm64-installer:
+    name: Backfill Windows ARM64 MSI
     if: github.event_name == 'workflow_dispatch' && !github.event.repository.private
     runs-on: windows-11-arm
     steps:
@@ -207,12 +207,6 @@ jobs:
             --onefile \
             run_programista.py
 
-      - name: Package artifact (Windows ARM64)
-        shell: bash
-        run: |
-          mkdir -p out
-          cp "dist/programista.exe" "out/programista-win-arm64.exe"
-
       - name: Build installer (MSI)
         shell: pwsh
         run: |
@@ -227,9 +221,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: |
-            out/programista-win-arm64.exe
-            out/programista-win-arm64.msi
+          files: out/programista-win-arm64.msi
 
   backfill-windows-x64-installer:
     name: Backfill Windows x64 MSI
