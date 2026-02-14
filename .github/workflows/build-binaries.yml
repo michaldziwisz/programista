@@ -176,9 +176,16 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && !github.event.repository.private
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout tools (main)
+        uses: actions/checkout@v4
+        with:
+          path: tools
+
+      - name: Checkout app (tag)
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
+          path: app
 
       - uses: actions/setup-python@v5
         with:
@@ -186,17 +193,20 @@ jobs:
           cache: "pip"
 
       - name: Install deps
+        working-directory: app
         run: |
           python -m pip install -U pip
           python -m pip install -e ".[dev,gui]"
           python -m pip install -U pyinstaller
 
       - name: Tests
+        working-directory: app
         run: |
           pytest -q
 
       - name: Build (PyInstaller)
         shell: bash
+        working-directory: app
         run: |
           rm -rf build dist
           python -m PyInstaller \
@@ -210,27 +220,36 @@ jobs:
       - name: Build installer (MSI)
         shell: pwsh
         run: |
+          Push-Location app
           $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
-          ./scripts/build_windows_msi.ps1 `
+          Pop-Location
+          ./tools/scripts/build_windows_msi.ps1 `
             -Arch arm64 `
             -Version $ver `
-            -SourceExe dist\\programista.exe `
-            -OutMsi out\\programista-win-arm64.msi
+            -SourceExe app\\dist\\programista.exe `
+            -OutMsi tools\\out\\programista-win-arm64.msi
 
       - name: Upload to GitHub Release (backfill)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: out/programista-win-arm64.msi
+          files: tools/out/programista-win-arm64.msi
 
   backfill-windows-x64-installer:
     name: Backfill Windows x64 MSI
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout tools (main)
+        uses: actions/checkout@v4
+        with:
+          path: tools
+
+      - name: Checkout app (tag)
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
+          path: app
 
       - uses: actions/setup-python@v5
         with:
@@ -238,17 +257,20 @@ jobs:
           cache: "pip"
 
       - name: Install deps
+        working-directory: app
         run: |
           python -m pip install -U pip
           python -m pip install -e ".[dev,gui]"
           python -m pip install -U pyinstaller
 
       - name: Tests
+        working-directory: app
         run: |
           pytest -q
 
       - name: Build (PyInstaller)
         shell: bash
+        working-directory: app
         run: |
           rm -rf build dist
           python -m PyInstaller \
@@ -262,15 +284,17 @@ jobs:
       - name: Build installer (MSI)
         shell: pwsh
         run: |
+          Push-Location app
           $ver = python -c "import tvguide_app; print(tvguide_app.__version__)"
-          ./scripts/build_windows_msi.ps1 `
+          Pop-Location
+          ./tools/scripts/build_windows_msi.ps1 `
             -Arch x64 `
             -Version $ver `
-            -SourceExe dist\\programista.exe `
-            -OutMsi out\\programista-win-x64.msi
+            -SourceExe app\\dist\\programista.exe `
+            -OutMsi tools\\out\\programista-win-x64.msi
 
       - name: Upload to GitHub Release (backfill)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: out/programista-win-x64.msi
+          files: tools/out/programista-win-x64.msi
