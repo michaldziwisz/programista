@@ -5,6 +5,7 @@
     Manufacturer="Programista"
     Version="$(var.AppVersion)"
     UpgradeCode="{9B8B9D0A-3F62-4D32-8A4A-2E6DE1A9C4D0}"
+    Language="1045"
     Scope="perUser"
     Codepage="1250"
     Compressed="yes"
@@ -16,11 +17,8 @@
       <ComponentRef Id="ProgramistaComponent" />
     </Feature>
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
-  </Package>
-
-  <Fragment>
     <WixVariable Id="WixUILicenseRtf" Value="installer/wix/License.rtf" />
-  </Fragment>
+  </Package>
 
   <Fragment>
     <StandardDirectory Id="LocalAppDataFolder">
