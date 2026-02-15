@@ -40,7 +40,15 @@ Build lokalny (Windows / PowerShell):
 
 Docelowo do dystrybucji w Microsoft Store i WinGet najwygodniejszy jest instalator MSI (osobno dla `x64` i `arm64`).
 
-W aplikacji jest pozycja menu: **Pomoc → Sprawdź aktualizacje programu…** — sprawdza GitHub Releases i (na Windows) potrafi pobrać oraz uruchomić instalator.
+W aplikacji jest pozycja menu: **Pomoc → Sprawdź aktualizacje programu…** — sprawdza GitHub Releases i (na Windows) potrafi pobrać oraz uruchomić instalator. Jeśli aplikacja jest zainstalowana jako pakiet MSIX (np. ze Store), self-update jest wyłączony na rzecz aktualizacji ze Store.
+
+## Microsoft Store + WinGet (msstore)
+
+Jeśli aplikacja jest opublikowana w Microsoft Store, możesz instalować ją przez WinGet bez PR do `winget-pkgs`:
+- `winget search Programista -s msstore`
+- `winget install --id <PRODUCT_ID> -s msstore`
+
+Szczegóły: `docs/microsoft-store.md`.
 
 ## Licencja
 
