@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WixLocalization
+  Culture="pl-pl"
+  Codepage="1250"
+  xmlns="http://wixtoolset.org/schemas/v4/wxl"
+>
+  <String Id="WixUIBack" Overridable="yes" Value="&amp;Wstecz" />
+  <String Id="WixUINext" Overridable="yes" Value="&amp;Dalej" />
+  <String Id="WixUICancel" Overridable="yes" Value="Anuluj" />
+  <String Id="WixUIFinish" Overridable="yes" Value="&amp;Zakończ" />
+  <String Id="WixUIRetry" Overridable="yes" Value="&amp;Ponów" />
+  <String Id="WixUIIgnore" Overridable="yes" Value="&amp;Ignoruj" />
+  <String Id="WixUIYes" Overridable="yes" Value="&amp;Tak" />
+  <String Id="WixUINo" Overridable="yes" Value="&amp;Nie" />
+  <String Id="WixUIOK" Overridable="yes" Value="OK" />
+  <String Id="WixUIPrint" Overridable="yes" Value="Wy&amp;drukuj" />
+
+  <String Id="BrowseDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="BrowseDlgComboLabel" Overridable="yes" Value="&amp;Szukaj w:" />
+  <String Id="BrowseDlgWixUI_Bmp_Up" Overridable="yes" Value="WixUI_Bmp_Up" />
+  <String Id="BrowseDlgWixUI_Bmp_UpTooltip" Overridable="yes" Value="Wyżej o jeden poziom" />
+  <String Id="BrowseDlgNewFolder" Overridable="yes" Value="WixUI_Bmp_New" />
+  <String Id="BrowseDlgNewFolderTooltip" Overridable="yes" Value="Utwórz nowy folder" />
+  <String Id="BrowseDlgPathLabel" Overridable="yes" Value="Nazwa &amp;folderu:" />
+  <String Id="BrowseDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String Id="BrowseDlgDescription" Overridable="yes" Value="Wybierz folder docelowy." />
+  <String Id="BrowseDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Wybierz folder docelowy" />
+
+  <String Id="CancelDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="CancelDlgText" Overridable="yes" Value="Czy na pewno chcesz anulować instalację [ProductName]?" />
+  <String Id="CancelDlgIcon" Overridable="yes" Value="WixUI_Ico_Info" />
+  <String Id="CancelDlgIconTooltip" Overridable="yes" Value="Ikona informacji" />
+
+  <String Id="DiskCostDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="DiskCostDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String
+    Id="DiskCostDlgText"
+    Overridable="yes"
+    Value="Wyróżnione woluminy nie mają wystarczającej ilości wolnego miejsca na wybrane funkcje. Możesz usunąć pliki z tych woluminów, zainstalować mniej funkcji albo wybrać inny dysk docelowy."
+  />
+  <String Id="DiskCostDlgDescription" Overridable="yes" Value="Wymagana ilość miejsca na dysku dla wybranych funkcji." />
+  <String Id="DiskCostDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Wymagane miejsce na dysku" />
+  <String Id="DiskCostDlgVolumeList" Overridable="yes" Value="{120}{70}{70}{70}{70}" />
+
+  <String Id="ErrorDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="ErrorDlgErrorText" Overridable="yes" Value="Informacja" />
+  <String Id="ErrorDlgErrorIcon" Overridable="yes" Value="WixUI_Ico_Info" />
+  <String Id="ErrorDlgErrorIconTooltip" Overridable="yes" Value="Ikona informacji" />
+
+  <String Id="ExitDialog_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="ExitDialogBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String Id="ExitDialogDescription" Overridable="yes" Value="Kliknij przycisk Zakończ, aby zamknąć kreator." />
+  <String Id="ExitDialogTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Ukończono działanie Kreatora instalacji [ProductName]" />
+
+  <String Id="FatalError_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="FatalErrorBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String Id="FatalErrorTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Kreator instalacji [ProductName] zakończył się przedwcześnie" />
+  <String
+    Id="FatalErrorDescription1"
+    Overridable="yes"
+    Value="Kreator instalacji [ProductName] zakończył się przedwcześnie z powodu błędu. System nie został zmodyfikowany. Aby zainstalować ten program później, uruchom Kreatora instalacji ponownie."
+  />
+  <String Id="FatalErrorDescription2" Overridable="yes" Value="Kliknij przycisk Zakończ, aby zamknąć kreator." />
+
+  <String Id="FilesInUse_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="FilesInUseExit" Overridable="yes" Value="Za&amp;kończ" />
+  <String Id="FilesInUseBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String
+    Id="FilesInUseText"
+    Overridable="yes"
+    Value="Poniższe aplikacje używają plików, które muszą zostać zaktualizowane przez instalator. Zamknij te aplikacje, a następnie kliknij Ponów, aby kontynuować, albo Zakończ, aby wyjść."
+  />
+  <String Id="FilesInUseDescription" Overridable="yes" Value="Niektóre wymagane pliki są obecnie używane." />
+  <String Id="FilesInUseTitle" Overridable="yes" Value="{\WixUI_Font_Title}Pliki w użyciu" />
+
+  <String Id="InstallDirDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="InstallDirDlgChange" Overridable="yes" Value="&amp;Zmień..." />
+  <String Id="InstallDirDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Folder docelowy" />
+  <String
+    Id="InstallDirDlgDescription"
+    Overridable="yes"
+    Value="Kliknij Dalej, aby zainstalować w domyślnym folderze, albo Zmień..., aby wybrać inny."
+  />
+  <String Id="InstallDirDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String Id="InstallDirDlgFolderLabel" Overridable="yes" Value="Zainstaluj [ProductName] w:" />
+
+  <String Id="LicenseAgreementDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox" Overridable="yes" Value="&amp;Akceptuję warunki Umowy licencyjnej" />
+  <String Id="LicenseAgreementDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String Id="LicenseAgreementDlgDescription" Overridable="yes" Value="Przeczytaj uważnie poniższą umowę licencyjną." />
+  <String Id="LicenseAgreementDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Umowa licencyjna" />
+
+  <String Id="PrepareDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="PrepareDlgBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String Id="PrepareDlgDescription" Overridable="yes" Value="Proszę czekać, trwa przygotowywanie kreatora instalacji." />
+  <String Id="PrepareDlgTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Witamy w Kreatorze instalacji [ProductName]" />
+
+  <String Id="ProgressDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="ProgressDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String Id="ProgressDlgTextInstalling" Overridable="yes" Value="Proszę czekać, trwa instalowanie [ProductName]." />
+  <String Id="ProgressDlgTitleInstalling" Overridable="yes" Value="{\WixUI_Font_Title}Instalowanie [ProductName]" />
+  <String Id="ProgressDlgTextChanging" Overridable="yes" Value="Proszę czekać, trwa zmienianie [ProductName]." />
+  <String Id="ProgressDlgTitleChanging" Overridable="yes" Value="{\WixUI_Font_Title}Zmienianie [ProductName]" />
+  <String Id="ProgressDlgTextRepairing" Overridable="yes" Value="Proszę czekać, trwa naprawianie [ProductName]." />
+  <String Id="ProgressDlgTitleRepairing" Overridable="yes" Value="{\WixUI_Font_Title}Naprawianie [ProductName]" />
+  <String Id="ProgressDlgTextRemoving" Overridable="yes" Value="Proszę czekać, trwa usuwanie [ProductName]." />
+  <String Id="ProgressDlgTitleRemoving" Overridable="yes" Value="{\WixUI_Font_Title}Usuwanie [ProductName]" />
+  <String Id="ProgressDlgTextUpdating" Overridable="yes" Value="Proszę czekać, trwa aktualizowanie [ProductName]." />
+  <String Id="ProgressDlgTitleUpdating" Overridable="yes" Value="{\WixUI_Font_Title}Aktualizowanie [ProductName]" />
+  <String Id="ProgressDlgProgressBar" Overridable="yes" Value="Postęp" />
+  <String Id="ProgressDlgStatusLabel" Overridable="yes" Value="Stan:" />
+
+  <String Id="ResumeDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="ResumeDlgInstall" Overridable="yes" Value="&amp;Zainstaluj" />
+  <String Id="ResumeDlgBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String
+    Id="ResumeDlgDescription"
+    Overridable="yes"
+    Value="Kreator instalacji dokończy instalację [ProductName] na Twoim komputerze. Kliknij Zainstaluj, aby kontynuować, albo Anuluj, aby zakończyć kreator."
+  />
+  <String Id="ResumeDlgTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Wznawianie Kreatora instalacji [ProductName]" />
+
+  <String Id="VerifyReadyDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="VerifyReadyDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+
+  <String Id="VerifyReadyDlgInstall" Overridable="yes" Value="&amp;Zainstaluj" />
+  <String
+    Id="VerifyReadyDlgInstallText"
+    Overridable="yes"
+    Value="Kliknij Zainstaluj, aby rozpocząć instalację. Kliknij Wstecz, aby przejrzeć lub zmienić ustawienia. Kliknij Anuluj, aby zakończyć kreator."
+  />
+  <String Id="VerifyReadyDlgInstallTitle" Overridable="yes" Value="{\WixUI_Font_Title}Gotowe do instalacji [ProductName]" />
+
+  <String Id="VerifyReadyDlgChange" Overridable="yes" Value="&amp;Zmień" />
+  <String
+    Id="VerifyReadyDlgChangeText"
+    Overridable="yes"
+    Value="Kliknij Zmień, aby rozpocząć instalację. Kliknij Wstecz, aby przejrzeć lub zmienić ustawienia. Kliknij Anuluj, aby zakończyć kreator."
+  />
+  <String Id="VerifyReadyDlgChangeTitle" Overridable="yes" Value="{\WixUI_Font_Title}Gotowe do zmiany [ProductName]" />
+
+  <String Id="VerifyReadyDlgRepair" Overridable="yes" Value="Na&amp;praw" />
+  <String
+    Id="VerifyReadyDlgRepairText"
+    Overridable="yes"
+    Value="Kliknij Napraw, aby naprawić instalację [ProductName]. Kliknij Wstecz, aby przejrzeć lub zmienić ustawienia. Kliknij Anuluj, aby zakończyć kreator."
+  />
+  <String Id="VerifyReadyDlgRepairTitle" Overridable="yes" Value="{\WixUI_Font_Title}Gotowe do naprawy [ProductName]" />
+
+  <String Id="VerifyReadyDlgRemove" Overridable="yes" Value="&amp;Usuń" />
+  <String
+    Id="VerifyReadyDlgRemoveText"
+    Overridable="yes"
+    Value="Kliknij Usuń, aby usunąć [ProductName] z komputera. Kliknij Wstecz, aby przejrzeć lub zmienić ustawienia. Kliknij Anuluj, aby zakończyć kreator."
+  />
+  <String Id="VerifyReadyDlgRemoveTitle" Overridable="yes" Value="{\WixUI_Font_Title}Gotowe do usunięcia [ProductName]" />
+
+  <String Id="VerifyReadyDlgUpdate" Overridable="yes" Value="&amp;Aktualizuj" />
+  <String
+    Id="VerifyReadyDlgUpdateText"
+    Overridable="yes"
+    Value="Kliknij Aktualizuj, aby zaktualizować [ProductName]. Kliknij Wstecz, aby przejrzeć lub zmienić ustawienia. Kliknij Anuluj, aby zakończyć kreator."
+  />
+  <String Id="VerifyReadyDlgUpdateTitle" Overridable="yes" Value="{\WixUI_Font_Title}Gotowe do aktualizacji [ProductName]" />
+
+  <String Id="WaitForCostingDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="WaitForCostingDlgReturn" Overridable="yes" Value="&amp;Wróć" />
+  <String Id="WaitForCostingDlgText" Overridable="yes" Value="Proszę czekać, trwa obliczanie wymagań dotyczących miejsca na dysku." />
+  <String Id="WaitForCostingDlgIcon" Overridable="yes" Value="WixUI_Ico_Exclam" />
+  <String Id="WaitForCostingDlgIconTooltip" Overridable="yes" Value="Ikona ostrzeżenia" />
+
+  <String Id="WelcomeDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="WelcomeDlgBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String
+    Id="WelcomeDlgDescription"
+    Overridable="yes"
+    Value="Kreator instalacji zainstaluje [ProductName] na Twoim komputerze. Kliknij Dalej, aby kontynuować, albo Anuluj, aby zakończyć kreator."
+  />
+  <String
+    Id="WelcomeUpdateDlgDescriptionUpdate"
+    Overridable="yes"
+    Value="Kreator instalacji zaktualizuje [ProductName] na Twoim komputerze. Kliknij Dalej, aby kontynuować, albo Anuluj, aby zakończyć kreator."
+  />
+  <String Id="WelcomeDlgTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Witamy w Kreatorze instalacji [ProductName]" />
+</WixLocalization>
