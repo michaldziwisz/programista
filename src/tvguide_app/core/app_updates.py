@@ -7,6 +7,7 @@ import re
 from typing import Literal
 
 from tvguide_app.core.http import HttpClient
+from tvguide_app.core.windows_appmodel import is_packaged_app
 
 
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/michaldziwisz/programista/releases/latest"
@@ -89,6 +90,17 @@ def check_for_app_update(
     force_refresh: bool,
     cache_ttl_seconds: int = 6 * 3600,
 ) -> AppUpdateCheckResult:
+    if platform.system().lower() == "windows" and is_packaged_app():
+        return AppUpdateCheckResult(
+            current_version=current_version,
+            latest_version=None,
+            update_available=False,
+            release_url=None,
+            installer_name=None,
+            installer_url=None,
+            message="Ta wersja programu jest aktualizowana przez Microsoft Store.",
+        )
+
     try:
         raw = http.get_text(
             GITHUB_LATEST_RELEASE_URL,
