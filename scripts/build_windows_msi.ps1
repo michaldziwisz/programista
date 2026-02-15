@@ -76,11 +76,43 @@ if ($LASTEXITCODE -ne 0) {
   throw "wix extension add WixToolset.UI.wixext/$wixVersion failed with exit code $LASTEXITCODE"
 }
 
+$wixLocRoots = @()
+if ($env:USERPROFILE) {
+  $wixLocRoots += (Join-Path $env:USERPROFILE ".wix")
+}
+
+$plWxlNames = @(
+  "WixUI_pl-pl.wxl",
+  "WixUI_pl-PL.wxl",
+  "WixUI_pl.wxl"
+)
+
+$plWxl = $null
+foreach ($rootPath in $wixLocRoots) {
+  if (-not (Test-Path $rootPath)) {
+    continue
+  }
+  foreach ($name in $plWxlNames) {
+    $plWxl = Get-ChildItem -Path $rootPath -Recurse -File -Filter $name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($plWxl) {
+      break
+    }
+  }
+  if ($plWxl) {
+    break
+  }
+}
+
+if (-not $plWxl) {
+  throw "Nie znaleziono pliku lokalizacji WiX UI dla pl-PL (np. WixUI_pl-pl.wxl)."
+}
+
 $wxs = Join-Path $root "installer\\wix\\Programista.wxs"
 & wix build `
   $wxs `
   -arch $Arch `
   -ext WixToolset.UI.wixext `
+  -loc $plWxl.FullName `
   -d AppVersion=$appVersion `
   -d SourceExe=$SourceExe `
   -o $OutMsi
