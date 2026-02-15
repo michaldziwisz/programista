@@ -182,4 +182,82 @@
     Value="Kreator instalacji zaktualizuje [ProductName] na Twoim komputerze. Kliknij Dalej, aby kontynuować, albo Anuluj, aby zakończyć kreator."
   />
   <String Id="WelcomeDlgTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Witamy w Kreatorze instalacji [ProductName]" />
+
+  <String Id="MaintenanceWelcomeDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="MaintenanceWelcomeDlgBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String
+    Id="MaintenanceWelcomeDlgDescription"
+    Overridable="yes"
+    Value="Kreator instalacji pozwala zmienić sposób instalacji [ProductName] lub usunąć go z komputera. Kliknij Dalej, aby kontynuować, albo Anuluj, aby zakończyć kreator."
+  />
+  <String Id="MaintenanceWelcomeDlgTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Witamy w Kreatorze instalacji [ProductName]" />
+
+  <String Id="MaintenanceTypeDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="MaintenanceTypeDlgChangeButton" Overridable="yes" Value="&amp;Zmień" />
+  <String Id="MaintenanceTypeDlgChangeButtonTooltip" Overridable="yes" Value="Zmień instalację" />
+  <String Id="MaintenanceTypeDlgRepairButton" Overridable="yes" Value="Na&amp;praw" />
+  <String Id="MaintenanceTypeDlgRepairButtonTooltip" Overridable="yes" Value="Napraw instalację" />
+  <String Id="MaintenanceTypeDlgRemoveButton" Overridable="yes" Value="&amp;Usuń" />
+  <String Id="MaintenanceTypeDlgRemoveButtonTooltip" Overridable="yes" Value="Usuń instalację" />
+  <String Id="MaintenanceTypeDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String Id="MaintenanceTypeDlgDescription" Overridable="yes" Value="Wybierz operację, którą chcesz wykonać." />
+  <String Id="MaintenanceTypeDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Zmień, napraw lub usuń instalację" />
+  <String Id="MaintenanceTypeDlgChangeText" Overridable="yes" Value="Pozwala zmienić sposób instalowania składników." />
+  <String Id="MaintenanceTypeDlgChangeDisabledText" Overridable="yes" Value="[ProductName] nie ma składników możliwych do wyboru niezależnie." />
+  <String Id="MaintenanceTypeDlgRemoveText" Overridable="yes" Value="Usuwa [ProductName] z komputera." />
+  <String Id="MaintenanceTypeDlgRemoveDisabledText" Overridable="yes" Value="Nie można usunąć [ProductName]." />
+  <String
+    Id="MaintenanceTypeDlgRepairText"
+    Overridable="yes"
+    Value="Naprawia błędy w ostatniej instalacji, przywracając brakujące lub uszkodzone pliki, skróty i wpisy rejestru."
+  />
+  <String Id="MaintenanceTypeDlgRepairDisabledText" Overridable="yes" Value="Nie można naprawić [ProductName]." />
+
+  <String Id="MsiRMFilesInUse_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="MsiRMFilesInUseBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String
+    Id="MsiRMFilesInUseText"
+    Overridable="yes"
+    Value="Poniższe aplikacje używają plików, które muszą zostać zaktualizowane przez instalator. Kreator może je zamknąć i spróbować uruchomić ponownie albo możesz później uruchomić ponownie komputer."
+  />
+  <String Id="MsiRMFilesInUseDescription" Overridable="yes" Value="Niektóre pliki wymagane do aktualizacji są obecnie używane." />
+  <String Id="MsiRMFilesInUseTitle" Overridable="yes" Value="{\WixUI_Font_Title}Pliki w użyciu" />
+  <String Id="MsiRMFilesInUseUseRM" Overridable="yes" Value="&amp;Zamknij aplikacje i spróbuj je uruchomić ponownie." />
+  <String
+    Id="MsiRMFilesInUseDontUseRM"
+    Overridable="yes"
+    Value="&amp;Nie zamykaj aplikacji. Wymagane będzie ponowne uruchomienie komputera."
+  />
+
+  <String Id="OutOfDiskDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="OutOfDiskDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String
+    Id="OutOfDiskDlgText"
+    Overridable="yes"
+    Value="Wyróżnione woluminy nie mają wystarczającej ilości wolnego miejsca na wybrane funkcje. Możesz usunąć pliki z tych woluminów, zainstalować mniej funkcji albo wybrać inny dysk docelowy."
+  />
+  <String Id="OutOfDiskDlgDescription" Overridable="yes" Value="Wymagane miejsce na dysku przekracza dostępne." />
+  <String Id="OutOfDiskDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Brak miejsca na dysku" />
+  <String Id="OutOfDiskDlgVolumeList" Overridable="yes" Value="{120}{70}{70}{70}{70}" />
+
+  <String Id="OutOfRbDiskDlg_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="OutOfRbDiskDlgBannerBitmap" Overridable="yes" Value="WixUI_Bmp_Banner" />
+  <String
+    Id="OutOfRbDiskDlgText"
+    Overridable="yes"
+    Value="Wyróżnione woluminy nie mają wystarczającej ilości wolnego miejsca na wybrane funkcje. Możesz usunąć pliki z tych woluminów, zainstalować mniej funkcji albo wybrać inny dysk docelowy."
+  />
+  <String Id="OutOfRbDiskDlgDescription" Overridable="yes" Value="Wymagane miejsce na dysku przekracza dostępne." />
+  <String Id="OutOfRbDiskDlgTitle" Overridable="yes" Value="{\WixUI_Font_Title}Brak miejsca na dysku" />
+  <String Id="OutOfRbDiskDlgVolumeList" Overridable="yes" Value="{120}{70}{70}{70}{70}" />
+
+  <String Id="UserExit_Title" Overridable="yes" Value="Instalator [ProductName]" />
+  <String Id="UserExitBitmap" Overridable="yes" Value="WixUI_Bmp_Dialog" />
+  <String Id="UserExitTitle" Overridable="yes" Value="{\WixUI_Font_Bigger}Kreator instalacji [ProductName] został przerwany" />
+  <String
+    Id="UserExitDescription1"
+    Overridable="yes"
+    Value="Instalacja [ProductName] została przerwana. System nie został zmodyfikowany. Aby zainstalować ten program później, uruchom instalator ponownie."
+  />
+  <String Id="UserExitDescription2" Overridable="yes" Value="Kliknij przycisk Zakończ, aby zamknąć kreator." />
 </WixLocalization>
