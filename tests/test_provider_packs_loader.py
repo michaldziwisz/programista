@@ -4,8 +4,10 @@ from pathlib import Path
 
 from tvguide_app.core.cache import SqliteCache
 from tvguide_app.core.http import HttpClient
-from tvguide_app.core.models import ProviderId, ScheduleItem, Source, SourceId
+from tvguide_app.core.models import ProviderId, Source, SourceId
 from tvguide_app.core.provider_packs.loader import PackLoader, PackStore
+from tvguide_app.core.provider_packs.service import ProviderPackService
+from tvguide_app.core.provider_packs.updater import UpdateResult
 from tvguide_app.core.providers.archive_base import ArchiveProvider
 from tvguide_app.core.providers.base import ScheduleProvider
 
@@ -13,6 +15,61 @@ from tvguide_app.core.providers.base import ScheduleProvider
 def _http(tmp_path: Path) -> HttpClient:
     cache = SqliteCache(tmp_path / "cache.sqlite3")
     return HttpClient(cache, user_agent="tvguide-app-tests/0.0")
+
+
+class _FallbackScheduleProvider(ScheduleProvider):
+    @property
+    def provider_id(self) -> str:
+        return "fallback"
+
+    @property
+    def display_name(self) -> str:
+        return "Fallback"
+
+    def list_sources(self, *, force_refresh: bool = False):
+        return [
+            Source(provider_id=ProviderId(self.provider_id), id=SourceId("fallback"), name="Fallback")
+        ]
+
+    def list_days(self, *, force_refresh: bool = False):
+        return []
+
+    def get_schedule(self, source, day, *, force_refresh: bool = False):
+        return []
+
+    def get_item_details(self, item, *, force_refresh: bool = False) -> str:
+        return ""
+
+
+class _FallbackArchiveProvider(ArchiveProvider):
+    @property
+    def provider_id(self) -> str:
+        return "fallback-archive"
+
+    @property
+    def display_name(self) -> str:
+        return "Fallback Archive"
+
+    def list_years(self) -> list[int]:
+        return []
+
+    def list_days_in_month(self, year: int, month: int, *, force_refresh: bool = False):
+        return []
+
+    def list_sources_for_day(self, day: date, *, force_refresh: bool = False):
+        return []
+
+    def get_schedule(self, source: Source, day: date, *, force_refresh: bool = False):
+        return []
+
+
+class _NoopUpdater:
+    def __init__(self) -> None:
+        self.force_check: bool | None = None
+
+    def update_if_needed(self, *, force_check: bool = False) -> UpdateResult:
+        self.force_check = force_check
+        return UpdateResult(updated=[], message="Dostawcy są aktualni.")
 
 
 def test_pack_loader_loads_tv_pack(tmp_path: Path) -> None:
@@ -278,4 +335,91 @@ def load(http):
         sys.path[:] = orig_sys_path
         for name in list(sys.modules):
             if name.startswith("programista_providers_archive_test"):
+                sys.modules.pop(name, None)
+
+
+def test_provider_pack_service_reloads_installed_pack_when_no_update_is_needed(tmp_path: Path) -> None:
+    store = PackStore(tmp_path / "providers")
+    pack_dir = store.pack_dir("tv", "1.0.0")
+    pack_dir.mkdir(parents=True, exist_ok=True)
+
+    (pack_dir / "pack.json").write_text(
+        """
+        {
+          "schema": 1,
+          "kind": "tv",
+          "version": "1.0.0",
+          "package": "programista_providers_tv_reload_test",
+          "entrypoint": "programista_providers_tv_reload_test:load",
+          "provider_api_version": 1
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    pkg = pack_dir / "programista_providers_tv_reload_test"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text(
+        """
+from datetime import date
+
+from tvguide_app.core.models import ProviderId, ScheduleItem, Source, SourceId
+from tvguide_app.core.providers.base import ScheduleProvider
+
+
+class ReloadedTv(ScheduleProvider):
+    @property
+    def provider_id(self) -> str:
+        return "reloaded-tv"
+
+    @property
+    def display_name(self) -> str:
+        return "Reloaded TV"
+
+    def list_sources(self, *, force_refresh: bool = False):
+        return [Source(provider_id=ProviderId(self.provider_id), id=SourceId("x"), name="Reloaded")]
+
+    def list_days(self, *, force_refresh: bool = False):
+        return [date(2026, 1, 1)]
+
+    def get_schedule(self, source, day, *, force_refresh: bool = False):
+        return []
+
+    def get_item_details(self, item, *, force_refresh: bool = False) -> str:
+        return ""
+
+
+def load(http):
+    return [ReloadedTv()]
+        """.lstrip(),
+        encoding="utf-8",
+    )
+
+    store.set_active_version("tv", "1.0.0")
+    orig_sys_path = list(sys.path)
+    try:
+        service = ProviderPackService(
+            _http(tmp_path),
+            base_url="https://example.invalid/providers/",
+            store=store,
+            app_version="0.1.0",
+            fallback_tv=_FallbackScheduleProvider(),
+            fallback_tv_accessibility=_FallbackScheduleProvider(),
+            fallback_radio=_FallbackScheduleProvider(),
+            fallback_archive=_FallbackArchiveProvider(),
+        )
+        updater = _NoopUpdater()
+        service._updater = updater
+
+        assert service.runtime.tv.list_sources()[0].name == "Fallback"
+
+        result = service.update_and_reload(force_check=True)
+
+        assert result.updated == []
+        assert updater.force_check is True
+        assert service.runtime.tv.list_sources()[0].name == "Reloaded"
+    finally:
+        sys.path[:] = orig_sys_path
+        for name in list(sys.modules):
+            if name.startswith("programista_providers_tv_reload_test"):
                 sys.modules.pop(name, None)

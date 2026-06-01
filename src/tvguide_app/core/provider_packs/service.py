@@ -9,8 +9,6 @@ from tvguide_app.core.provider_packs.updater import ProviderPackUpdater, UpdateR
 from tvguide_app.core.provider_packs.wrappers import (
     CompositeArchiveProvider,
     CompositeScheduleProvider,
-    EmptyArchiveProvider,
-    EmptyScheduleProvider,
     ReloadableArchiveProvider,
     ReloadableScheduleProvider,
 )
@@ -85,8 +83,7 @@ class ProviderPackService:
 
     def update_and_reload(self, *, force_check: bool = False) -> UpdateResult:
         result = self._updater.update_if_needed(force_check=force_check)
-        if result.updated:
-            self.load_installed()
+        self.load_installed()
         return result
 
     def _load_schedule_kind(self, kind: ProviderKind) -> ScheduleProvider | None:

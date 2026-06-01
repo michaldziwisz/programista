@@ -459,8 +459,7 @@ class MainFrame(wx.Frame):
 
     def _on_providers_updated(self, result) -> None:
         self._status_bar.SetStatusText(getattr(result, "message", "Gotowe."))
-        if getattr(result, "updated", None):
-            self._refresh_all_tabs()
+        self._refresh_all_tabs()
 
     def _on_providers_update_error(self, exc: Exception) -> None:
         msg = str(exc) or "Nieznany błąd."
