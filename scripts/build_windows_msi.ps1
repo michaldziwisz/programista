@@ -37,6 +37,7 @@ function Normalize-Version([string]$v) {
 }
 
 $appVersion = Normalize-Version $Version
+$wixToolVersion = "6.0.2"
 
 if (-not (Test-Path $SourceExe)) {
   throw "Nie znaleziono pliku SourceExe: $SourceExe"
@@ -47,26 +48,67 @@ if ($outDir -and -not (Test-Path $outDir)) {
   New-Item -ItemType Directory -Path $outDir | Out-Null
 }
 
-# Ensure dotnet tools are on PATH (GitHub Actions uses this location for global tools).
-$dotnetTools = Join-Path $env:USERPROFILE ".dotnet\\tools"
-if (Test-Path $dotnetTools) {
-  $env:Path = "$dotnetTools;$env:Path"
+function Add-DotnetToolPath() {
+  if (-not $env:USERPROFILE) {
+    return
+  }
+
+  # GitHub Actions installs global .NET tools here, but the directory may not
+  # exist until after the first tool installation.
+  $dotnetTools = Join-Path $env:USERPROFILE ".dotnet\\tools"
+  $pathSeparator = [System.IO.Path]::PathSeparator
+  $pathParts = $env:Path -split [regex]::Escape($pathSeparator)
+  if ($pathParts -notcontains $dotnetTools) {
+    $env:Path = "$dotnetTools$pathSeparator$env:Path"
+  }
 }
 
-if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
+function Get-WixToolVersion() {
+  if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
+    return $null
+  }
+
+  $raw = (& wix --version 2>$null | Select-Object -First 1)
+  if (-not $raw) {
+    return $null
+  }
+
+  return ($raw.Trim() -split "[^0-9\\.]")[0]
+}
+
+function Install-WixTool([string]$RequiredVersion) {
   if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw "Nie znaleziono narzędzia 'dotnet' potrzebnego do instalacji WiX Toolset."
   }
-  & dotnet tool install --global wix | Out-Host
+
+  & dotnet tool install --global wix --version $RequiredVersion | Out-Host
+  if ($LASTEXITCODE -eq 0) {
+    return
+  }
+
+  & dotnet tool update --global wix --version $RequiredVersion | Out-Host
+  if ($LASTEXITCODE -eq 0) {
+    return
+  }
+
+  & dotnet tool uninstall --global wix | Out-Host
+  & dotnet tool install --global wix --version $RequiredVersion | Out-Host
   if ($LASTEXITCODE -ne 0) {
-    throw "dotnet tool install wix failed with exit code $LASTEXITCODE"
+    throw "dotnet tool install wix --version $RequiredVersion failed with exit code $LASTEXITCODE"
   }
 }
 
-$wixVersionRaw = (& wix --version 2>$null | Select-Object -First 1).Trim()
-$wixVersion = ($wixVersionRaw -split "[^0-9\\.]")[0]
-if (-not $wixVersion) {
-  throw "Nie udało się odczytać wersji WiX Toolset (wix --version)."
+Add-DotnetToolPath
+
+$wixVersion = Get-WixToolVersion
+if ($wixVersion -ne $wixToolVersion) {
+  Install-WixTool $wixToolVersion
+  Add-DotnetToolPath
+  $wixVersion = Get-WixToolVersion
+}
+
+if ($wixVersion -ne $wixToolVersion) {
+  throw "Nie udało się przygotować WiX Toolset $wixToolVersion (aktywny: $wixVersion)."
 }
 
 # Install UI extension pinned to the same version as the WiX tool to avoid
