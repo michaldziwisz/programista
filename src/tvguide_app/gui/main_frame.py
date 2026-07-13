@@ -40,13 +40,14 @@ class MainFrame(wx.Frame):
         self._http = HttpClient(self._cache, user_agent="programista/0.1 (+desktop)")
         self._search_index = SearchIndex(cache_path.with_name("search.sqlite3"))
         self._search_index.prune()
+        self._teleman_provider = TelemanProvider(self._http)
 
         self._providers = ProviderPackService(
             self._http,
             base_url="https://github.com/michaldziwisz/programista-providers/releases/latest/download/",
             store=PackStore(self._default_providers_path()),
             app_version=self._app_version(),
-            fallback_tv=TelemanProvider(self._http),
+            fallback_tv=self._teleman_provider,
             fallback_tv_accessibility=EmptyScheduleProvider(),
             fallback_radio=PolskieRadioProvider(self._http),
             fallback_archive=FandomArchiveProvider(self._http, year=date.today().year),
@@ -327,6 +328,7 @@ class MainFrame(wx.Frame):
             favorites_store=self._favorites_store,
             on_favorites_changed=self._on_favorites_changed,
             search_index=self._search_index,
+            now_tv_provider=self._teleman_provider,
         )
         self._tv_accessibility_tab = TvAccessibilityTab(
             self._notebook,

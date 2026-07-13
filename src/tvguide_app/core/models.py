@@ -35,3 +35,15 @@ class ScheduleItem:
     details_ref: str | None
     details_summary: str | None
     accessibility: tuple[AccessibilityFeature, ...] = ()
+
+
+@dataclass(frozen=True)
+class NowTvItem:
+    provider_id: ProviderId
+    source: Source
+    start_time: time | None
+    end_time: time | None
+    title: str
+    subtitle: str | None
+    details_ref: str | None
+    is_current: bool
