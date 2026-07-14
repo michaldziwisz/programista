@@ -24,6 +24,13 @@ class Source:
 
 
 @dataclass(frozen=True)
+class TvCategory:
+    id: str
+    name: str
+    sources: tuple[Source, ...]
+
+
+@dataclass(frozen=True)
 class ScheduleItem:
     provider_id: ProviderId
     source: Source

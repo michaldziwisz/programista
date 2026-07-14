@@ -329,6 +329,7 @@ class MainFrame(wx.Frame):
             on_favorites_changed=self._on_favorites_changed,
             search_index=self._search_index,
             now_tv_provider=self._teleman_provider,
+            category_provider=self._teleman_provider,
         )
         self._tv_accessibility_tab = TvAccessibilityTab(
             self._notebook,

@@ -6,13 +6,19 @@ import time
 import threading
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Protocol
 
 import wx
 import wx.dataview as dv
 
 from tvguide_app.core.favorites import FavoriteKind, FavoriteRef, FavoritesStore, decode_favorite_source_id
-from tvguide_app.core.models import ACCESSIBILITY_FEATURE_LABELS, AccessibilityFeature, ScheduleItem, Source
+from tvguide_app.core.models import (
+    ACCESSIBILITY_FEATURE_LABELS,
+    AccessibilityFeature,
+    ScheduleItem,
+    Source,
+    TvCategory,
+)
 from tvguide_app.core.providers.archive_base import ArchiveProvider
 from tvguide_app.core.providers.base import ScheduleProvider
 from tvguide_app.core.search_index import SearchIndex, SearchKind
@@ -21,14 +27,33 @@ from tvguide_app.core.util import POLISH_MONTHS_NOMINATIVE
 from tvguide_app.gui.now_tv_dialog import NowTvDialog, NowTvProvider
 
 
-ViewMode = Literal["by_source", "by_day"]
+ViewMode = Literal["by_source", "by_day", "by_category"]
+
+
+class TvCategoryProvider(Protocol):
+    def list_tv_categories(self, *, force_refresh: bool = False) -> list[TvCategory]: ...
+
+    def list_days(self, *, force_refresh: bool = False) -> list[date]: ...
+
+    def get_schedule(
+        self,
+        source: Source,
+        day: date,
+        *,
+        force_refresh: bool = False,
+    ) -> list[ScheduleItem]: ...
+
+    def get_live_sport_schedule(self, *, force_refresh: bool = False) -> list[ScheduleItem]: ...
+
+    def get_item_details(self, item: ScheduleItem, *, force_refresh: bool = False) -> str: ...
 
 
 @dataclass(frozen=True)
 class NodeData:
-    kind: Literal["pair", "source", "day"]
+    kind: Literal["pair", "source", "day", "category"]
     source: Source | None = None
     day: date | None = None
+    category_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +83,7 @@ class BaseScheduleTab(wx.Panel):
         self._search_index = search_index
         self._search_kind = search_kind
         self._view_mode: ViewMode = "by_source"
+        self._view_modes: list[ViewMode] = []
         self._request_token = 0
         self._show_end_time = True
         self._source_filter_query = ""
@@ -88,13 +114,18 @@ class BaseScheduleTab(wx.Panel):
     def _after_nav_update(self) -> None:
         return
 
+    def _available_view_modes(self) -> list[tuple[ViewMode, str]]:
+        return [("by_source", "wg kanałów"), ("by_day", "wg dni")]
+
     def _build_ui(self) -> None:
         root = wx.BoxSizer(wx.VERTICAL)
 
         header = wx.BoxSizer(wx.HORIZONTAL)
         header.Add(wx.StaticText(self, label="Widok:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        self._view_choice = wx.Choice(self, choices=["wg kanałów", "wg dni"])
-        self._view_choice.SetSelection(0)
+        view_options = self._available_view_modes()
+        self._view_modes = [mode for mode, _label in view_options]
+        self._view_choice = wx.Choice(self, choices=[label for _mode, label in view_options])
+        self._view_choice.SetSelection(self._view_modes.index(self._view_mode))
         self._view_choice.Bind(wx.EVT_CHOICE, self._on_view_choice)
         header.Add(self._view_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
         self._create_header_controls(header)
@@ -345,8 +376,14 @@ class BaseScheduleTab(wx.Panel):
         return f"pair:{source.provider_id}:{source.id}:{day.isoformat()}"
 
     def _on_view_choice(self, _evt: wx.CommandEvent) -> None:
-        self._view_mode = "by_source" if self._view_choice.GetSelection() == 0 else "by_day"
+        selection = self._view_choice.GetSelection()
+        if selection < 0 or selection >= len(self._view_modes):
+            return
+        self._view_mode = self._view_modes[selection]
         self._rebuild_nav()
+
+    def _build_category_nav_rows(self) -> list[NavRow]:
+        return []
 
     def _nav_root_sources(self) -> list[Source]:
         sources = self._sources
@@ -410,7 +447,7 @@ class BaseScheduleTab(wx.Panel):
                                 expanded=False,
                             )
                         )
-        else:
+        elif self._view_mode == "by_day":
             for d in self._nav_root_days():
                 day_key = self._day_key(d)
                 expanded = day_key in self._expanded_by_day
@@ -438,6 +475,8 @@ class BaseScheduleTab(wx.Panel):
                                 expanded=False,
                             )
                         )
+        else:
+            rows.extend(self._build_category_nav_rows())
 
         self._nav_rows = rows
         self._nav_index_by_key = {row.key: idx for idx, row in enumerate(rows)}
@@ -788,22 +827,471 @@ class TvTab(BaseScheduleTab):
         on_favorites_changed: Callable[[], None],
         search_index: SearchIndex | None = None,
         now_tv_provider: NowTvProvider | None = None,
+        category_provider: TvCategoryProvider | None = None,
     ) -> None:
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "tv"
         self._now_tv_provider = now_tv_provider
         self._now_tv_dialog: NowTvDialog | None = None
+        self._category_provider = category_provider
+        self._tv_categories: list[TvCategory] = []
+        self._category_days: list[date] = []
+        self._category_metadata_loaded = False
+        self._category_metadata_loading = False
+        self._category_metadata_token = 0
+        self._expanded_by_category: set[str] = set()
+        self._expanded_by_category_source: set[str] = set()
+        self._live_sport_enabled = False
+        self._live_sport_loading = False
+        self._live_sport_items: list[ScheduleItem] = []
+        self._live_sport_token = 0
+        self._category_details_token = 0
         super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="tv")
 
+    def _available_view_modes(self) -> list[tuple[ViewMode, str]]:
+        modes = super()._available_view_modes()
+        if self._category_provider is not None:
+            modes.append(("by_category", "wg kategorii"))
+        return modes
+
     def _create_header_controls(self, header: wx.BoxSizer) -> None:
-        if self._now_tv_provider is None:
+        if self._now_tv_provider is not None:
+            self._now_tv_button = wx.Button(self, label="&Teraz w TV")
+            self._now_tv_button.SetName("Teraz w TV")
+            self._now_tv_button.SetToolTip(
+                "Pokaż programy emitowane teraz i rozpoczynające się za chwilę"
+            )
+            self._now_tv_button.Bind(wx.EVT_BUTTON, self._on_now_tv)
+            header.Add(self._now_tv_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        if self._category_provider is not None:
+            self._live_sport_cb = wx.CheckBox(self, label="&Pokaż tylko programy na żywo")
+            self._live_sport_cb.SetName("Pokaż tylko programy na żywo")
+            self._live_sport_cb.SetToolTip(
+                "Ogranicz kategorię Sport do transmisji oznaczonych jako na żywo w Teleman.pl"
+            )
+            self._live_sport_cb.Bind(wx.EVT_CHECKBOX, self._on_live_sport_changed)
+            header.Add(self._live_sport_cb, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 12)
+            self._live_sport_cb.Hide()
+
+    def refresh_all(self, *, force: bool) -> None:
+        super().refresh_all(force=force)
+        self._start_category_metadata_load(force=force)
+        if self._live_sport_enabled:
+            self._start_live_sport_load(force=force)
+
+    def refresh(self, *, force: bool) -> None:
+        if self._view_mode != "by_category":
+            super().refresh(force=force)
             return
-        self._now_tv_button = wx.Button(self, label="&Teraz w TV")
-        self._now_tv_button.SetName("Teraz w TV")
-        self._now_tv_button.SetToolTip("Pokaż programy emitowane teraz i rozpoczynające się za chwilę")
-        self._now_tv_button.Bind(wx.EVT_BUTTON, self._on_now_tv)
-        header.Add(self._now_tv_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        row = self._get_selected_nav_row()
+        category_id = row.data.category_id if row else None
+        if category_id == "sport" and self._live_sport_enabled:
+            self._start_live_sport_load(force=force)
+        elif row and row.data.kind == "pair" and row.data.source and row.data.day:
+            self._load_schedule(row.data.source, row.data.day, force=force)
+        else:
+            self._start_category_metadata_load(force=force)
+
+    def _start_category_metadata_load(self, *, force: bool) -> None:
+        provider = self._category_provider
+        if provider is None:
+            return
+
+        self._category_metadata_token += 1
+        token = self._category_metadata_token
+        self._category_metadata_loading = True
+        if self._view_mode == "by_category":
+            self._status_bar.SetStatusText("Ładowanie kategorii kanałów…")
+            self._clear_tv_schedule("Ładowanie kategorii kanałów z Teleman.pl…")
+
+        def work() -> tuple[list[TvCategory], list[date]]:
+            return (
+                provider.list_tv_categories(force_refresh=force),
+                provider.list_days(force_refresh=force),
+            )
+
+        def on_success(result: tuple[list[TvCategory], list[date]]) -> None:
+            if token != self._category_metadata_token:
+                return
+            categories, days = result
+            self._tv_categories = categories
+            self._category_days = days
+            self._category_metadata_loaded = True
+            self._category_metadata_loading = False
+            if self._view_mode != "by_category":
+                return
+            self._rebuild_nav()
+            if categories:
+                self._details.SetValue("Rozwiń kategorię i wybierz kanał.")
+                self._status_bar.SetStatusText("Gotowe.")
+            else:
+                self._details.SetValue("Teleman.pl nie zwrócił żadnych kategorii kanałów.")
+                self._status_bar.SetStatusText("Brak kategorii kanałów.")
+
+        def on_error(exc: Exception) -> None:
+            if token != self._category_metadata_token:
+                return
+            self._category_metadata_loading = False
+            if self._view_mode == "by_category":
+                self._rebuild_nav()
+                self._on_error(exc)
+
+        self._run_in_thread(work, on_success=on_success, on_error=on_error)
+
+    def _on_view_choice(self, evt: wx.CommandEvent) -> None:
+        self._request_token += 1
+        super()._on_view_choice(evt)
+        self._clear_tv_schedule("")
+        if self._view_mode != "by_category":
+            return
+        if not self._category_metadata_loaded and not self._category_metadata_loading:
+            self._start_category_metadata_load(force=False)
+        elif self._category_metadata_loading:
+            self._details.SetValue("Ładowanie kategorii kanałów z Teleman.pl…")
+        elif self._tv_categories:
+            self._details.SetValue("Rozwiń kategorię i wybierz kanał.")
+
+    def _after_nav_update(self) -> None:
+        self._update_live_sport_checkbox()
+
+    @staticmethod
+    def _category_key(category_id: str) -> str:
+        return f"cat:{category_id}"
+
+    @staticmethod
+    def _category_source_key(category_id: str, source: Source) -> str:
+        return f"cat-src:{category_id}:{source.provider_id}:{source.id}"
+
+    @staticmethod
+    def _category_pair_key(category_id: str, source: Source, day: date) -> str:
+        return f"cat-pair:{category_id}:{source.provider_id}:{source.id}:{day.isoformat()}"
+
+    def _build_category_nav_rows(self) -> list[NavRow]:
+        rows: list[NavRow] = []
+        for category in self._tv_categories:
+            sources = self._category_sources(category)
+            if self._source_filter_query:
+                sources = self._filtered_sources(sources)
+                if not sources:
+                    continue
+
+            category_key = self._category_key(category.id)
+            category_expanded = category_key in self._expanded_by_category
+            rows.append(
+                NavRow(
+                    key=category_key,
+                    parent_key=None,
+                    level=0,
+                    label=category.name,
+                    data=NodeData(kind="category", category_id=category.id),
+                    expandable=bool(sources),
+                    expanded=category_expanded,
+                )
+            )
+            if not category_expanded:
+                continue
+
+            for source in sources:
+                source_key = self._category_source_key(category.id, source)
+                source_expanded = source_key in self._expanded_by_category_source
+                days = self._category_days_for_source(category.id, source)
+                rows.append(
+                    NavRow(
+                        key=source_key,
+                        parent_key=category_key,
+                        level=1,
+                        label=source.name,
+                        data=NodeData(
+                            kind="source",
+                            source=source,
+                            category_id=category.id,
+                        ),
+                        expandable=bool(days),
+                        expanded=source_expanded,
+                    )
+                )
+                if not source_expanded:
+                    continue
+
+                for day in days:
+                    rows.append(
+                        NavRow(
+                            key=self._category_pair_key(category.id, source, day),
+                            parent_key=source_key,
+                            level=2,
+                            label=day.isoformat(),
+                            data=NodeData(
+                                kind="pair",
+                                source=source,
+                                day=day,
+                                category_id=category.id,
+                            ),
+                            expandable=False,
+                            expanded=False,
+                        )
+                    )
+        return rows
+
+    def _category_sources(self, category: TvCategory) -> list[Source]:
+        if category.id != "sport" or not self._live_sport_enabled:
+            return list(category.sources)
+
+        sources: list[Source] = []
+        seen: set[tuple[str, str]] = set()
+        for item in self._live_sport_items:
+            key = (str(item.source.provider_id), str(item.source.id))
+            if key in seen:
+                continue
+            seen.add(key)
+            sources.append(item.source)
+        return sources
+
+    def _category_days_for_source(self, category_id: str, source: Source) -> list[date]:
+        if category_id != "sport" or not self._live_sport_enabled:
+            return list(self._category_days)
+        return sorted(
+            {
+                item.day
+                for item in self._live_sport_items
+                if item.source.provider_id == source.provider_id and item.source.id == source.id
+            }
+        )
+
+    def _set_nav_expanded(self, key: str, *, expanded: bool) -> None:
+        if key.startswith("cat-src:"):
+            if expanded:
+                self._expanded_by_category_source.add(key)
+            else:
+                self._expanded_by_category_source.discard(key)
+            self._rebuild_nav()
+            return
+        if key.startswith("cat:"):
+            if expanded:
+                self._expanded_by_category.add(key)
+            else:
+                self._expanded_by_category.discard(key)
+            self._rebuild_nav()
+            return
+        super()._set_nav_expanded(key, expanded=expanded)
+
+    def _on_nav_selection(self, evt: wx.CommandEvent) -> None:
+        if self._view_mode != "by_category":
+            super()._on_nav_selection(evt)
+            return
+        if self._suppress_nav_event:
+            return
+
+        row = self._get_selected_nav_row()
+        self._update_live_sport_checkbox()
+        if row and row.data.kind == "pair" and row.data.source and row.data.day:
+            self._load_schedule(row.data.source, row.data.day, force=False)
+            return
+
+        self._request_token += 1
+        if self._live_sport_loading and row and row.data.category_id == "sport":
+            message = "Pobieranie transmisji sportowych na żywo z Teleman.pl…"
+        elif row and row.data.kind == "source":
+            message = "Rozwiń kanał i wybierz dzień."
+        else:
+            message = "Rozwiń kategorię i wybierz kanał."
+        self._clear_tv_schedule(message)
+        self._status_bar.SetStatusText(message)
+
+    def _clear_tv_schedule(self, message: str) -> None:
+        self._category_details_token += 1
+        self._items = []
+        if hasattr(self, "_list"):
+            self._list.DeleteAllItems()
+        if hasattr(self, "_details"):
+            self._details.SetValue(message)
+
+    def _selected_category_id(self) -> str | None:
+        row = self._get_selected_nav_row()
+        return row.data.category_id if row else None
+
+    def _update_live_sport_checkbox(self) -> None:
+        checkbox = getattr(self, "_live_sport_cb", None)
+        if checkbox is None:
+            return
+        should_show = self._view_mode == "by_category" and self._selected_category_id() == "sport"
+        if checkbox.IsShown() == should_show:
+            return
+        if not should_show and wx.Window.FindFocus() is checkbox:
+            wx.CallAfter(self._nav.SetFocus)
+        checkbox.Show(should_show)
+        self.Layout()
+
+    def _on_live_sport_changed(self, _evt: wx.CommandEvent) -> None:
+        if not self._live_sport_cb.IsChecked():
+            self._live_sport_token += 1
+            self._live_sport_loading = False
+            self._live_sport_enabled = False
+            self._live_sport_cb.Enable()
+            self._rebuild_nav()
+            self._select_category_root("sport")
+            self._status_bar.SetStatusText("Wyłączono filtr programów sportowych na żywo.")
+            return
+        self._start_live_sport_load(force=False)
+
+    def _start_live_sport_load(self, *, force: bool) -> None:
+        provider = self._category_provider
+        if provider is None:
+            return
+
+        previous_enabled = self._live_sport_enabled
+        previous_items = list(self._live_sport_items)
+        self._live_sport_token += 1
+        token = self._live_sport_token
+        self._live_sport_loading = True
+        self._live_sport_cb.Disable()
+        self._status_bar.SetStatusText("Pobieranie transmisji sportowych na żywo…")
+        self._category_details_token += 1
+        self._details.SetValue("Pobieranie danych z https://www.teleman.pl/sport?live=1…")
+
+        def on_success(items: list[ScheduleItem]) -> None:
+            if token != self._live_sport_token:
+                return
+            selected_key = self._get_selected_nav_key()
+            should_report = (
+                self._view_mode == "by_category" and self._selected_category_id() == "sport"
+            )
+            self._live_sport_loading = False
+            self._live_sport_enabled = True
+            self._live_sport_items = items
+            self._live_sport_cb.SetValue(True)
+            self._live_sport_cb.Enable()
+            self._expanded_by_category.add(self._category_key("sport"))
+            if self._view_mode == "by_category":
+                self._rebuild_nav()
+                if should_report and selected_key not in self._nav_index_by_key:
+                    self._select_category_root("sport")
+                if should_report and not items:
+                    self._details.SetValue("Teleman.pl nie zwrócił transmisji na żywo.")
+            if should_report:
+                self._status_bar.SetStatusText(f"Pobrano transmisje na żywo: {len(items)}.")
+
+        def on_error(exc: Exception) -> None:
+            if token != self._live_sport_token:
+                return
+            selected_key = self._get_selected_nav_key()
+            should_report = (
+                self._view_mode == "by_category" and self._selected_category_id() == "sport"
+            )
+            self._live_sport_loading = False
+            self._live_sport_enabled = previous_enabled
+            self._live_sport_items = previous_items
+            self._live_sport_cb.SetValue(previous_enabled)
+            self._live_sport_cb.Enable()
+            if self._view_mode == "by_category":
+                self._rebuild_nav()
+                if should_report and selected_key not in self._nav_index_by_key:
+                    self._select_category_root("sport")
+            if should_report:
+                self._on_error(exc)
+
+        self._run_in_thread(
+            lambda: provider.get_live_sport_schedule(force_refresh=force),
+            on_success=on_success,
+            on_error=on_error,
+        )
+
+    def _select_category_root(self, category_id: str) -> None:
+        if self._view_mode != "by_category":
+            return
+        index = self._nav_index_by_key.get(self._category_key(category_id))
+        if index is not None:
+            self._set_nav_selection(index)
+
+    def _load_schedule(self, source: Source, day: date, *, force: bool) -> None:
+        if self._view_mode != "by_category" or self._category_provider is None:
+            super()._load_schedule(source, day, force=force)
+            return
+
+        self._category_details_token += 1
+        row = self._get_selected_nav_row()
+        category_id = row.data.category_id if row else None
+        if category_id == "sport" and self._live_sport_cb.IsChecked():
+            if self._live_sport_loading:
+                self._clear_tv_schedule("Pobieranie transmisji sportowych na żywo…")
+                return
+            self._request_token += 1
+            items = [
+                item
+                for item in self._live_sport_items
+                if item.day == day
+                and item.source.provider_id == source.provider_id
+                and item.source.id == source.id
+            ]
+            self._show_schedule(items)
+            if self._search_index and self._search_kind:
+                try:
+                    self._search_index.add_items(self._search_kind, items)
+                except Exception:  # noqa: BLE001
+                    pass
+            if not items:
+                self._details.SetValue("Brak transmisji na żywo dla wybranego kanału i dnia.")
+            self._status_bar.SetStatusText("Gotowe.")
+            return
+
+        self._request_token += 1
+        token = self._request_token
+        self._list.DeleteAllItems()
+        self._details.SetValue("")
+        self._status_bar.SetStatusText(f"Pobieranie: {source.name} {day.isoformat()}…")
+
+        def on_success(items: list[ScheduleItem]) -> None:
+            if token != self._request_token:
+                return
+            self._show_schedule(items)
+            if self._search_index and self._search_kind:
+                try:
+                    self._search_index.add_items(self._search_kind, items)
+                except Exception:  # noqa: BLE001
+                    pass
+            self._status_bar.SetStatusText("Gotowe.")
+
+        def on_error(exc: Exception) -> None:
+            if token != self._request_token:
+                return
+            self._on_error(exc)
+
+        self._run_in_thread(
+            lambda: self._category_provider.get_schedule(
+                source,
+                day,
+                force_refresh=force,
+            ),
+            on_success=on_success,
+            on_error=on_error,
+        )
+
+    def _show_item_details(self, idx: int) -> None:
+        if self._view_mode != "by_category" or self._category_provider is None:
+            super()._show_item_details(idx)
+            return
+        if idx < 0 or not hasattr(self, "_items") or idx >= len(self._items):
+            return
+        item = self._items[idx]
+        self._category_details_token += 1
+        token = self._category_details_token
+        self._details.SetValue(item.details_summary or "Ładowanie szczegółów…")
+
+        def on_success(text: str) -> None:
+            if token == self._category_details_token and self._view_mode == "by_category":
+                self._details.SetValue(text)
+
+        def on_error(exc: Exception) -> None:
+            if token == self._category_details_token and self._view_mode == "by_category":
+                self._on_error(exc)
+
+        self._run_in_thread(
+            lambda: self._category_provider.get_item_details(item, force_refresh=False),
+            on_success=on_success,
+            on_error=on_error,
+        )
 
     def _on_now_tv(self, _evt: wx.CommandEvent) -> None:
         if self._now_tv_provider is None:

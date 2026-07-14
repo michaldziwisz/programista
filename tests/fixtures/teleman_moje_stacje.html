@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>Moje stacje - personalizacja Programu TV</title>
+<meta name="description" content="Zarządzaj swoimi stacjami. Stwórz własny program TV dla ulubionych stacji TV!" />
+<meta name="robots" content="noindex,follow" />
+<meta property="fb:app_id" content="196985250356550" />
+<meta property="fb:admins" content="100000013642551" />
+<link rel="stylesheet" href="/static/css/base.css?v=1718724353" type="text/css" media="all" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,500,700" />
+<link rel="apple-touch-icon" href="//static.teleman.pl/images/apple-touch-icon.png" sizes="114x114" />
+
+
+<script src="https://securepubads.g.doubleclick.net/tag/js/gpt.js?v1" async="async"></script>
+<script>
+window.googletag = window.googletag || {};
+window.googletag.cmd = window.googletag.cmd || [];
+
+</script>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-3119024-2"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-3119024-2');
+</script>
+
+
+</head>
+<body class="other ">
+
+
+    <div id="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <a id="site-logo" href="/" class="navbar-item" title="Teleman.pl - 14-dniowy Program TV dla 130 stacji">Teleman</a>
+
+
+<div id="clock" class="navbar-item">15:20</div>
+<script>
+(function() {
+	var clock = $('#clock');
+	(function update_time() {
+		var t = new Date();
+		var h = '' + t.getHours();
+		var m = '' + t.getMinutes();
+		if (h.length < 2) {
+			h = '0' + h;
+		}
+		if (m.length < 2) {
+			m = '0' + m;
+		}
+		clock.html(h+'<span>:</span>'+m);
+		setTimeout(update_time, 1000);
+	})();
+	(function toggle_colon() {
+		clock.toggleClass('colon');
+		setTimeout(toggle_colon, 1000);
+	})();
+})();
+</script>
+            </div>
+
+            <div class="navbar-menu">
+                <nav class="navbar-start">
+                    <a class="navbar-item" href="/">Program TV</a>
+                    <a id="main-menu-stations" class="navbar-item" href="#stacje">Stacje</a>
+                    <a class="navbar-item" href="/teraz">Teraz w TV</a>
+                    <a class="navbar-item" href="/filmy">Filmy</a>
+                    <a class="navbar-item" href="/sport">Sport</a>
+                </nav>
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <form id="search-form" action="/search">
+                            <div class="control has-icons-left">
+                                <input id="search-input" class="input nav-search" type="text" name="q" placeholder="Szukaj..." autocomplete="off" />
+                                <span class="icon is-left"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M505 442.7L405.3 343c-4.5-4.5-10.6-7-17-7H372c27.6-35.3 44-79.7 44-128C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c48.3 0 92.7-16.4 128-44v16.3c0 6.4 2.5 12.5 7 17l99.7 99.7c9.4 9.4 24.6 9.4 33.9 0l28.3-28.3c9.4-9.4 9.4-24.6.1-34zM208 336c-70.7 0-128-57.2-128-128 0-70.7 57.2-128 128-128 70.7 0 128 57.2 128 128 0 70.7-57.2 128-128 128z"></path></svg></span>
+                            </div>
+                            <div id="search-suggestions" class="popup"></div>
+                        </form>
+                        <a href="/moje-stacje" class="button"><span class="icon icon-gear"></span><span>Ustawienia</span></a>
+
+                        <a href="/login" class="button"><span class="icon icon-login"></span><span>Zaloguj</span></a>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="subheader">
+        <div class="container">
+            <div class="overflowHidden"><nav id="stations-index"><div>0-9</div><a href="/program-tv/stacje/13-Ulica">13 Ulica</a><div>A</div><a href="/program-tv/stacje/Ale-Kino">ale kino+</a><a href="/program-tv/stacje/AMC">AMC</a><a href="/program-tv/stacje/Animal-Planet-HD">Animal Planet</a><a href="/program-tv/stacje/Antena-HD">Antena HD</a><a href="/program-tv/stacje/AXN">AXN</a><a href="/program-tv/stacje/AXN-Black">AXN Black</a><a href="/program-tv/stacje/AXN-Spin">AXN Spin</a><a href="/program-tv/stacje/AXN-White">AXN White</a><div>B</div><a href="/program-tv/stacje/BBC-Brit">BBC Brit</a><a href="/program-tv/stacje/BBC-Earth">BBC Earth</a><a href="/program-tv/stacje/BBC-First">BBC First</a><a href="/program-tv/stacje/BBC-Lifestyle">BBC Lifestyle</a><div>C</div><a href="/program-tv/stacje/CanalPlus-1">CANAL+ 1</a><a href="/program-tv/stacje/CanalPlus-360">CANAL+ 360</a><a href="/program-tv/stacje/CanalPlus-4K">CANAL+ 4K</a><a href="/program-tv/stacje/CanalPlus-Dokument">CANAL+ Dokument</a><a href="/program-tv/stacje/Domo">CANAL+ Domo</a><a href="/program-tv/stacje/CanalPlus-Extra-1" class="new">CANAL+ Extra 1</a><a href="/program-tv/stacje/CanalPlus-Extra-2" class="new">CANAL+ Extra 2</a><a href="/program-tv/stacje/CanalPlus-Film">CANAL+ Film</a><a href="/program-tv/stacje/Kuchnia-TV">CANAL+ Kuchnia</a><a href="/program-tv/stacje/CanalPlus">CANAL+ Premium</a><a href="/program-tv/stacje/CanalPlus-Seriale">CANAL+ Seriale</a><a href="/program-tv/stacje/CanalPlus-Sport">CANAL+ Sport</a><a href="/program-tv/stacje/CanalPlus-Sport-2">CANAL+ Sport 2</a><a href="/program-tv/stacje/CanalPlus-Sport-3">CANAL+ Sport 3</a><a href="/program-tv/stacje/CanalPlus-Sport-4">CANAL+ Sport 4</a><a href="/program-tv/stacje/CanalPlus-Sport-5">CANAL+ Sport 5</a><a href="/program-tv/stacje/Cartoon-Network">Cartoon Network</a><a href="/program-tv/stacje/Cartoonito">Cartoonito</a><a href="/program-tv/stacje/CBS-Reality">CBS Reality</a><a href="/program-tv/stacje/Crime-Investigation-Network">CI Polsat</a><a href="/program-tv/stacje/Cinemax">Cinemax</a><a href="/program-tv/stacje/Cinemax2">Cinemax 2</a><a href="/program-tv/stacje/Comedy-Central">Comedy Central</a><div>D</div><a href="/program-tv/stacje/Discovery-Channel">Discovery Channel</a><a href="/program-tv/stacje/Discovery-Historia">Discovery Historia</a><a href="/program-tv/stacje/Discovery-Life">Discovery Life</a><a href="/program-tv/stacje/Discovery-Science">Discovery Science</a><a href="/program-tv/stacje/Disney-Channel">Disney Channel</a><a href="/program-tv/stacje/Disney-Junior">Disney Junior</a><a href="/program-tv/stacje/Disney-XD">Disney XD</a><a href="/program-tv/stacje/DTX">DTX</a><div>E</div><a href="/program-tv/stacje/Eleven-Sports-1">Eleven Sports 1</a><a href="/program-tv/stacje/Eleven-Sports-2">Eleven Sports 2</a><a href="/program-tv/stacje/Eleven-Sports-3">Eleven Sports 3</a><a href="/program-tv/stacje/Eleven-4">Eleven Sports 4</a><a href="/program-tv/stacje/Eurosport">Eurosport 1</a><a href="/program-tv/stacje/Eurosport-2">Eurosport 2</a><a href="/program-tv/stacje/Extreme">Extreme Channel</a><div>F</div><a href="/program-tv/stacje/Film-Cafe">Film Cafe</a><a href="/program-tv/stacje/Filmbox-Action">FILMBOX+ Action</a><a href="/program-tv/stacje/Filmbox-Family">FILMBOX+ Comedy</a><a href="/program-tv/stacje/Filmbox-Extra-HD">FILMBOX+ Emotion</a><a href="/program-tv/stacje/FilmBox-Arthouse">FILMBOX+ Festival</a><a href="/program-tv/stacje/Filmbox-Premium">FILMBOX+ Hits</a><a href="/program-tv/stacje/Kino%20TV">FILMBOX+ One</a><a href="/program-tv/stacje/Fokus-TV">Fokus TV</a><a href="/program-tv/stacje/Food-Network">Food Network</a><a href="/program-tv/stacje/FOX">FX</a><a href="/program-tv/stacje/FOX-Comedy">FX Comedy</a><div>H</div><a href="/program-tv/stacje/HBO">HBO</a><a href="/program-tv/stacje/HBO2">HBO 2</a><a href="/program-tv/stacje/HBO3">HBO 3</a><a href="/program-tv/stacje/HGTV">HGTV</a><a href="/program-tv/stacje/History">HISTORY</a><a href="/program-tv/stacje/H2">HISTORY 2</a><div>I</div><a href="/program-tv/stacje/ID">ID</a><div>K</div><a href="/program-tv/stacje/Kino-Polska">Kino Polska</a><div>L</div><a href="/program-tv/stacje/Lifetime">Lifetime</a><div>M</div><a href="/program-tv/stacje/Metro-TV">Metro TV</a><a href="/program-tv/stacje/Mezzo">Mezzo</a><a href="/program-tv/stacje/MiniMini">MiniMini+</a><a href="/program-tv/stacje/MTV-Polska">MTV Polska</a><div>N</div><a href="/program-tv/stacje/Nat-Geo-People">Nat Geo People</a><a href="/program-tv/stacje/National-Geographic">National Geo.</a><a href="/program-tv/stacje/Nat-Geo-Wild">Nat. Geo. Wild</a><a href="/program-tv/stacje/Nickelodeon">Nickelodeon</a><a href="/program-tv/stacje/Nicktoons">Nicktoons</a><a href="/program-tv/stacje/Nowa-TV">Nowa TV</a><div>P</div><a href="/program-tv/stacje/Paramount-Network">Paramount Network</a><a href="/program-tv/stacje/Planete">PLANETE+</a><a href="/program-tv/stacje/Polonia-1">Polonia 1</a><a href="/program-tv/stacje/Polsat">Polsat</a><a href="/program-tv/stacje/Polsat-2">Polsat 2</a><a href="/program-tv/stacje/Polsat-Cafe">Polsat Cafe</a><a href="/program-tv/stacje/Comedy-Central-Family">Polsat Comedy C. E.</a><a href="/program-tv/stacje/Polsat-Doku">Polsat Doku</a><a href="/program-tv/stacje/Polsat-Film">Polsat Film</a><a href="/program-tv/stacje/Polsat-Film-2" class="new">Polsat Film 2</a><a href="/program-tv/stacje/Polsat-Games">Polsat Games</a><a href="/program-tv/stacje/Polsat-News">Polsat News</a><a href="/program-tv/stacje/Polsat-Play">Polsat Play</a><a href="/program-tv/stacje/Polsat-Rodzina">Polsat Rodzina</a><a href="/program-tv/stacje/Polsat-Seriale">Polsat Seriale</a><a href="/program-tv/stacje/Polsat-Sport">Polsat Sport 1</a><a href="/program-tv/stacje/Polsat-Sport-2">Polsat Sport 2</a><a href="/program-tv/stacje/Polsat-Sport-3">Polsat Sport 3</a><a href="/program-tv/stacje/Polsat-Sport-Extra-1" class="new">Polsat Sport Extra 1</a><a href="/program-tv/stacje/Polsat-Sport-Extra-2" class="new">Polsat Sport Extra 2</a><a href="/program-tv/stacje/Polsat-Sport-Extra-3" class="new">Polsat Sport Extra 3</a><a href="/program-tv/stacje/Polsat-Sport-Extra-4" class="new">Polsat Sport Extra 4</a><a href="/program-tv/stacje/Polsat-Sport-Fight">Polsat Sport Fight</a><a href="/program-tv/stacje/Polsat-Sport-Premium-1">Polsat Sport Premium 1</a><a href="/program-tv/stacje/Polsat-Sport-Premium-2">Polsat Sport Premium 2</a><a href="/program-tv/stacje/Viasat-Explorer">Polsat Viasat Explore</a><a href="/program-tv/stacje/Viasat-History">Polsat Viasat History</a><a href="/program-tv/stacje/Viasat-Nature">Polsat Viasat Nature</a><div>R</div><a href="/program-tv/stacje/TV-Republika">Republika</a><a href="/program-tv/stacje/Romance-TV">Romance TV</a><div>S</div><a href="/program-tv/stacje/SCI-FI">SCI FI</a><a href="/program-tv/stacje/Show-TV">Show TV</a><a href="/program-tv/stacje/SportKlub">SportKlub</a><a href="/program-tv/stacje/Stopklatka-TV">Stopklatka</a><a href="/program-tv/stacje/Sundance-Channel-HD">Sundance TV</a><a href="/program-tv/stacje/Super-Polsat">Super Polsat</a><div>T</div><a href="/program-tv/stacje/Tele-5">Tele 5</a><a href="/program-tv/stacje/TLC">TLC</a><a href="/program-tv/stacje/Travel-Channel">Travel</a><a href="/program-tv/stacje/TTV">TTV</a><a href="/program-tv/stacje/TV4">TV 4</a><a href="/program-tv/stacje/TV6">TV 6</a><a href="/program-tv/stacje/Puls">TV Puls</a><a href="/program-tv/stacje/Puls-2">TV Puls 2</a><a href="/program-tv/stacje/TV-Trwam">TV Trwam</a><a href="/program-tv/stacje/TVN">TVN</a><a href="/program-tv/stacje/TVN-Siedem">TVN 7</a><a href="/program-tv/stacje/TVN-Fabula">TVN Fabuła</a><a href="/program-tv/stacje/TVN-Style">TVN Style</a><a href="/program-tv/stacje/TVN-Turbo">TVN Turbo</a><a href="/program-tv/stacje/TVN24">TVN24</a><a href="/program-tv/stacje/TVN-24-Biznes-i-Swiat">TVN24 BiS</a><a href="/program-tv/stacje/TVP-1">TVP 1</a><a href="/program-tv/stacje/TVP-2">TVP 2</a><a href="/program-tv/stacje/TVP-ABC">TVP ABC</a><a href="/program-tv/stacje/tvp-dokument">TVP Dokument</a><a href="/program-tv/stacje/TVP-HD">TVP HD</a><a href="/program-tv/stacje/TVP-Historia">TVP Historia</a><a href="/program-tv/stacje/tvp-historia-2" class="new">TVP Historia 2</a><a href="/program-tv/stacje/TVP-Info">TVP Info</a><a href="/program-tv/stacje/TVP-Kobieta">TVP Kobieta</a><a href="/program-tv/stacje/TVP-Kultura">TVP Kultura</a><a href="/program-tv/stacje/tvp-kultura-2">TVP Kultura 2</a><a href="/program-tv/stacje/TVP-Nauka">TVP Nauka</a><a href="/program-tv/stacje/TVP-Polonia">TVP Polonia</a><a href="/program-tv/stacje/TVP-Rozrywka">TVP Rozrywka</a><a href="/program-tv/stacje/TVP-Seriale">TVP Seriale</a><a href="/program-tv/stacje/TVP-Sport">TVP Sport</a><a href="/program-tv/stacje/TVS">TVS</a><div>V</div><a href="/program-tv/stacje/Epic-Drama">Viasat Epic Drama</a><div>W</div><a href="/program-tv/stacje/Warner-TV">Warner TV</a><a href="/program-tv/stacje/WP">WP</a><a href="/program-tv/stacje/Wydarzenia24">Wydarzenia 24</a><div>Z</div><a href="/program-tv/stacje/Zoom-TV">ZOOM</a><div id="stations-index-close" title="Zamknij" onclick="$('#main-menu-stations').click()"></div></nav>
+</div>
+
+  <div id="user-nav" class="container">
+    <a href="/moj-operator">Mój operator telewizyjny</a>
+    <a href="/moje-stacje" class="active">Moje stacje</a>
+
+    <a href="/signup">Załóż konto</a>
+
+</div>
+
+
+	</div>
+    </div>
+
+
+
+    <div id="content" class="container">
+<div id="user-stations-form">
+<p style="background-color:#fff6bf;padding:5px 15px;border:1px solid #ffd324;margin:0 auto 15px">Rekomendujemy zapisywanie ustawień po <a href="/login">zalogowaniu</a>. Dzięki temu będzie można ich używać na innych komputerach i nie będzie ryzyka ich utraty np. w przypadku skasowania ciasteczek lub zmiany przeglądarki.</p>
+
+
+<form method="post">
+  <input type="hidden" name="list" value="stations" />
+
+
+  <div class="section">
+    <h2>Popularne</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="1" type="checkbox" checked="checked" /> <span>TVP 1</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="2" type="checkbox" checked="checked" /> <span>TVP 2</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="3" type="checkbox" checked="checked" /> <span>Polsat</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="4" type="checkbox" checked="checked" /> <span>TVN</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Ogólnotematyczne</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="107" type="checkbox" /> <span>Metro TV</span></label></li><li><label><input name="station" value="115" type="checkbox" /> <span>Nowa TV</span></label></li><li><label><input name="station" value="103" type="checkbox" /> <span>Polonia 1</span></label></li><li><label><input name="station" value="11" type="checkbox" /> <span>Polsat 2</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="118" type="checkbox" /> <span>Super Polsat</span></label></li><li><label><input name="station" value="72" type="checkbox" checked="checked" /> <span>Tele 5</span></label></li><li><label><input name="station" value="6" type="checkbox" checked="checked" /> <span>TV 4</span></label></li><li><label><input name="station" value="163" type="checkbox" checked="checked" /> <span>TV 6</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="8" type="checkbox" checked="checked" /> <span>TV Puls</span></label></li><li><label><input name="station" value="170" type="checkbox" /> <span>TV Puls 2</span></label></li><li><label><input name="station" value="7" type="checkbox" checked="checked" /> <span>TVN 7</span></label></li><li><label><input name="station" value="154" type="checkbox" /> <span>TVP HD</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="5" type="checkbox" checked="checked" /> <span>TVP Kultura</span></label></li><li><label><input name="station" value="191" type="checkbox" /> <span>TVP Kultura 2</span></label></li><li><label><input name="station" value="10" type="checkbox" checked="checked" /> <span>TVP Polonia</span></label></li><li><label><input name="station" value="60" type="checkbox" /> <span>TVS</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="70" type="checkbox" checked="checked" /> <span>WP</span></label></li><li><label><input name="station" value="69" type="checkbox" /> <span>ZOOM</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Filmowe</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="19" type="checkbox" /> <span>13 Ulica</span></label></li><li><label><input name="station" value="14" type="checkbox" checked="checked" /> <span>ale kino+</span></label></li><li><label><input name="station" value="85" type="checkbox" /> <span>AMC</span></label></li><li><label><input name="station" value="194" type="checkbox" /> <span>Antena HD</span></label></li><li><label><input name="station" value="18" type="checkbox" checked="checked" /> <span>AXN</span></label></li><li><label><input name="station" value="82" type="checkbox" /> <span>AXN Black</span></label></li><li><label><input name="station" value="164" type="checkbox" /> <span>AXN Spin</span></label></li><li><label><input name="station" value="81" type="checkbox" /> <span>AXN White</span></label></li><li><label><input name="station" value="127" type="checkbox" /> <span>BBC First</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="175" type="checkbox" checked="checked" /> <span>CANAL+ 1</span></label></li><li><label><input name="station" value="174" type="checkbox" checked="checked" /> <span>CANAL+ 360</span></label></li><li><label><input name="station" value="188" type="checkbox" /> <span>CANAL+ 4K</span></label></li><li><label><input name="station" value="20" type="checkbox" checked="checked" /> <span>CANAL+ Film</span></label></li><li><label><input name="station" value="16" type="checkbox" checked="checked" /> <span>CANAL+ Premium</span></label></li><li><label><input name="station" value="173" type="checkbox" checked="checked" /> <span>CANAL+ Seriale</span></label></li><li><label><input name="station" value="41" type="checkbox" /> <span>Cinemax</span></label></li><li><label><input name="station" value="73" type="checkbox" /> <span>Cinemax 2</span></label></li><li><label><input name="station" value="80" type="checkbox" /> <span>Comedy Central</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="13" type="checkbox" checked="checked" /> <span>Film Cafe</span></label></li><li><label><input name="station" value="66" type="checkbox" /> <span>FILMBOX+ Action</span></label></li><li><label><input name="station" value="135" type="checkbox" /> <span>FILMBOX+ Comedy</span></label></li><li><label><input name="station" value="75" type="checkbox" /> <span>FILMBOX+ Emotion</span></label></li><li><label><input name="station" value="68" type="checkbox" /> <span>FILMBOX+ Festival</span></label></li><li><label><input name="station" value="116" type="checkbox" /> <span>FILMBOX+ Hits</span></label></li><li><label><input name="station" value="74" type="checkbox" checked="checked" /> <span>FILMBOX+ One</span></label></li><li><label><input name="station" value="158" type="checkbox" /> <span>FX</span></label></li><li><label><input name="station" value="79" type="checkbox" /> <span>FX Comedy</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="17" type="checkbox" checked="checked" /> <span>HBO</span></label></li><li><label><input name="station" value="21" type="checkbox" checked="checked" /> <span>HBO 2</span></label></li><li><label><input name="station" value="43" type="checkbox" checked="checked" /> <span>HBO 3</span></label></li><li><label><input name="station" value="15" type="checkbox" checked="checked" /> <span>Kino Polska</span></label></li><li><label><input name="station" value="88" type="checkbox" /> <span>Paramount Network</span></label></li><li><label><input name="station" value="109" type="checkbox" /> <span>Polsat Comedy C. E.</span></label></li><li><label><input name="station" value="146" type="checkbox" checked="checked" /> <span>Polsat Film</span></label></li><li><label><input name="station" value="197" type="checkbox" /> <span>Polsat Film 2</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="61" type="checkbox" /> <span>Polsat Seriale</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="67" type="checkbox" /> <span>Romance TV</span></label></li><li><label><input name="station" value="83" type="checkbox" /> <span>SCI FI</span></label></li><li><label><input name="station" value="193" type="checkbox" /> <span>Show TV</span></label></li><li><label><input name="station" value="180" type="checkbox" checked="checked" /> <span>Stopklatka</span></label></li><li><label><input name="station" value="167" type="checkbox" /> <span>Sundance TV</span></label></li><li><label><input name="station" value="53" type="checkbox" /> <span>TVN Fabuła</span></label></li><li><label><input name="station" value="155" type="checkbox" /> <span>TVP Seriale</span></label></li><li><label><input name="station" value="126" type="checkbox" checked="checked" /> <span>Viasat Epic Drama</span></label></li><li><label><input name="station" value="38" type="checkbox" checked="checked" /> <span>Warner TV</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Sportowe</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="198" type="checkbox" /> <span>CANAL+ Extra 1</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="199" type="checkbox" /> <span>CANAL+ Extra 2</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="31" type="checkbox" checked="checked" /> <span>CANAL+ Sport</span></label></li><li><label><input name="station" value="63" type="checkbox" /> <span>CANAL+ Sport 2</span></label></li><li><label><input name="station" value="186" type="checkbox" /> <span>CANAL+ Sport 3</span></label></li><li><label><input name="station" value="187" type="checkbox" /> <span>CANAL+ Sport 4</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="89" type="checkbox" checked="checked" /> <span>CANAL+ Sport 5</span></label></li><li><label><input name="station" value="172" type="checkbox" /> <span>Eleven Sports 1</span></label></li><li><label><input name="station" value="160" type="checkbox" /> <span>Eleven Sports 2</span></label></li><li><label><input name="station" value="90" type="checkbox" /> <span>Eleven Sports 3</span></label></li><li><label><input name="station" value="92" type="checkbox" /> <span>Eleven Sports 4</span></label></li><li><label><input name="station" value="29" type="checkbox" checked="checked" /> <span>Eurosport 1</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="32" type="checkbox" checked="checked" /> <span>Eurosport 2</span></label></li><li><label><input name="station" value="51" type="checkbox" /> <span>Extreme Channel</span></label></li><li><label><input name="station" value="71" type="checkbox" checked="checked" /> <span>Polsat Sport 1</span></label></li><li><label><input name="station" value="45" type="checkbox" checked="checked" /> <span>Polsat Sport 2</span></label></li><li><label><input name="station" value="159" type="checkbox" checked="checked" /> <span>Polsat Sport 3</span></label></li><li><label><input name="station" value="200" type="checkbox" /> <span>Polsat Sport Extra 1</span> <span class="new">nowa!</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="201" type="checkbox" /> <span>Polsat Sport Extra 2</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="202" type="checkbox" /> <span>Polsat Sport Extra 3</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="203" type="checkbox" /> <span>Polsat Sport Extra 4</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="185" type="checkbox" /> <span>Polsat Sport Fight</span></label></li><li><label><input name="station" value="105" type="checkbox" /> <span>Polsat Sport Premium 1</span></label></li><li><label><input name="station" value="112" type="checkbox" /> <span>Polsat Sport Premium 2</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="87" type="checkbox" /> <span>SportKlub</span></label></li><li><label><input name="station" value="86" type="checkbox" checked="checked" /> <span>TVP Sport</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Informacyjne</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="148" type="checkbox" /> <span>Polsat News</span></label></li><li><label><input name="station" value="65" type="checkbox" /> <span>Republika</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="12" type="checkbox" /> <span>TVN24</span></label></li><li><label><input name="station" value="58" type="checkbox" /> <span>TVN24 BiS</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="9" type="checkbox" /> <span>TVP Info</span></label></li><li><label><input name="station" value="108" type="checkbox" /> <span>Wydarzenia 24</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Dokumentalne</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="125" type="checkbox" /> <span>Animal Planet</span></label></li><li><label><input name="station" value="110" type="checkbox" /> <span>BBC Earth</span></label></li><li><label><input name="station" value="62" type="checkbox" /> <span>CANAL+ Dokument</span></label></li><li><label><input name="station" value="49" type="checkbox" /> <span>CBS Reality</span></label></li><li><label><input name="station" value="130" type="checkbox" /> <span>CI Polsat</span></label></li><li><label><input name="station" value="24" type="checkbox" /> <span>Discovery Channel</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="96" type="checkbox" /> <span>Discovery Historia</span></label></li><li><label><input name="station" value="25" type="checkbox" /> <span>Discovery Life</span></label></li><li><label><input name="station" value="26" type="checkbox" /> <span>Discovery Science</span></label></li><li><label><input name="station" value="28" type="checkbox" /> <span>DTX</span></label></li><li><label><input name="station" value="181" type="checkbox" /> <span>Fokus TV</span></label></li><li><label><input name="station" value="101" type="checkbox" /> <span>HISTORY</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="123" type="checkbox" /> <span>HISTORY 2</span></label></li><li><label><input name="station" value="136" type="checkbox" /> <span>ID</span></label></li><li><label><input name="station" value="64" type="checkbox" /> <span>Nat Geo People</span></label></li><li><label><input name="station" value="22" type="checkbox" /> <span>National Geo.</span></label></li><li><label><input name="station" value="56" type="checkbox" /> <span>Nat. Geo. Wild</span></label></li><li><label><input name="station" value="23" type="checkbox" /> <span>PLANETE+</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="182" type="checkbox" /> <span>Polsat Doku</span></label></li><li><label><input name="station" value="93" type="checkbox" /> <span>Polsat Viasat Explore</span></label></li><li><label><input name="station" value="94" type="checkbox" /> <span>Polsat Viasat History</span></label></li><li><label><input name="station" value="178" type="checkbox" /> <span>Polsat Viasat Nature</span></label></li><li><label><input name="station" value="54" type="checkbox" /> <span>Travel</span></label></li><li><label><input name="station" value="190" type="checkbox" /> <span>TVP Dokument</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="95" type="checkbox" /> <span>TVP Historia</span></label></li><li><label><input name="station" value="196" type="checkbox" /> <span>TVP Historia 2</span> <span class="new">nowa!</span></label></li><li><label><input name="station" value="195" type="checkbox" /> <span>TVP Nauka</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Rozrywkowe I Muzyczne</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="40" type="checkbox" /> <span>BBC Brit</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="44" type="checkbox" /> <span>Mezzo</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="37" type="checkbox" /> <span>MTV Polska</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="176" type="checkbox" /> <span>TVP Rozrywka</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Lifestylowe</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="33" type="checkbox" /> <span>BBC Lifestyle</span></label></li><li><label><input name="station" value="132" type="checkbox" /> <span>CANAL+ Domo</span></label></li><li><label><input name="station" value="98" type="checkbox" /> <span>CANAL+ Kuchnia</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="177" type="checkbox" /> <span>Food Network</span></label></li><li><label><input name="station" value="119" type="checkbox" /> <span>HGTV</span></label></li><li><label><input name="station" value="189" type="checkbox" /> <span>Lifetime</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="122" type="checkbox" /> <span>Polsat Cafe</span></label></li><li><label><input name="station" value="183" type="checkbox" /> <span>Polsat Games</span></label></li><li><label><input name="station" value="149" type="checkbox" /> <span>Polsat Play</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="184" type="checkbox" /> <span>Polsat Rodzina</span></label></li><li><label><input name="station" value="151" type="checkbox" /> <span>TLC</span></label></li><li><label><input name="station" value="166" type="checkbox" /> <span>TTV</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="39" type="checkbox" /> <span>TVN Style</span></label></li><li><label><input name="station" value="30" type="checkbox" /> <span>TVN Turbo</span></label></li><li><label><input name="station" value="192" type="checkbox" /> <span>TVP Kobieta</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Dla Dzieci</h2>
+
+    <a href="#" class="select-all">wybierz wszystkie</a>
+    <a href="#" class="clear-all">wyczyść wszystkie</a>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="34" type="checkbox" /> <span>Cartoon Network</span></label></li><li><label><input name="station" value="102" type="checkbox" /> <span>Cartoonito</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="42" type="checkbox" /> <span>Disney Channel</span></label></li><li><label><input name="station" value="145" type="checkbox" /> <span>Disney Junior</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="35" type="checkbox" /> <span>Disney XD</span></label></li><li><label><input name="station" value="36" type="checkbox" /> <span>MiniMini+</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="142" type="checkbox" /> <span>Nickelodeon</span></label></li><li><label><input name="station" value="165" type="checkbox" /> <span>Nicktoons</span></label></li>
+      </ul>
+
+
+
+      <ul>
+        <li><label><input name="station" value="179" type="checkbox" /> <span>TVP ABC</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Religijne</h2>
+
+    <div>
+
+
+      <ul>
+        <li><label><input name="station" value="152" type="checkbox" /> <span>TV Trwam</span></label></li>
+      </ul>
+
+
+    </div>
+  </div>
+
+  <div style="margin-top:1em">
+      <input type="submit" value="Zapisz zmiany" />
+      <input type="reset" value="Anuluj" onclick="document.location.href='/moje-stacje'" style="margin-left:0.5em" />
+  </div>
+</form>
+</div>
+</div>
+    <div id="end" class="clear"></div>
+
+    <footer id="footer"><ul><li><a href="/redakcja">Redakcja</a></li><li><a href="/reklama">Reklama</a></li><li><a href="/archiwum">Archiwum</a></li><li><a href="/sugestia">Prześlij opinię</a></li></ul><div>&copy; 2007-2026 Teleman.pl / Traffiqua s.j.<br>
+        Teleman.pl to internetowy przewodnik po programie TV. Znajdziesz tu m.in. program TVP, TVN, Polsat oraz ponad 120 innych stacji TV.<br>
+        Dzięki plikom cookie nasz serwis może działać lepiej. Korzystając z niego zgadzasz się na ich użycie. <a href="/privacy">Zobacz szczegóły i politykę prywatności</a><br>
+        Dane o programie TV dostarcza AKPA Polska Press.</div></footer>
+
+<script>
+$('.popup').click(function(e) {
+	e.stopPropagation();
+});
+
+$(document).click(function() {
+	$('.popup').hide();
+});
+
+$('#main-menu-stations').click(function() {
+	$('#stations-index').toggle();
+	$('#main-menu-stations').toggleClass('open');
+	$('#suggestions').toggle();
+	return false;
+});
+</script>
+<script src="//static.teleman.pl/scripts/autosuggest.js?v3"></script>
+
+<script>
+$(document).ready(function() {
+    $("a.clear-all").click(function() {
+        $(this).parent().find('input').prop('checked', false);
+        return false;
+    });
+    $("a.select-all").click(function() {
+        $(this).parent().find('input').prop('checked', true);
+        return false;
+    });
+});
+</script>
+
+
+</body>
+</html>
