@@ -24,6 +24,11 @@ class NowTvProvider(Protocol):
 
 _T = TypeVar("_T")
 
+# Opoznienie (ms) po zmianie zaznaczenia, po ktorym dociagamy z sieci pelny opis.
+# Przy szybkim przewijaniu strzalkami kolejne zmiany restartuja timer, wiec siec
+# odpytujemy tylko dla pozycji, na ktorej uzytkownik faktycznie sie zatrzyma.
+_DETAILS_DEBOUNCE_MS = 300
+
 
 class NowTvDialog(wx.Dialog):
     def __init__(self, parent: wx.Window, provider: NowTvProvider) -> None:
@@ -39,6 +44,12 @@ class NowTvDialog(wx.Dialog):
         self._details_token = 0
         self._closed = False
         self._first_load = True
+        # Debounce pobierania pelnego opisu: przy przewijaniu strzalkami po liscie
+        # podstawowe info pokazujemy od razu, a siec odpytujemy dopiero po chwili
+        # bezruchu na danej pozycji (mniej zbednych zadan, plynne czytanie NVDA).
+        self._pending_detail_index: int | None = None
+        self._details_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._on_details_timer, self._details_timer)
 
         self._build_ui()
         self.Bind(wx.EVT_CLOSE, self._on_close)
@@ -211,7 +222,7 @@ class NowTvDialog(wx.Dialog):
     def _on_item_selected(self, evt: wx.Event) -> None:
         index = self._event_index(evt)
         if index is not None:
-            self._show_item_details(index)
+            self._preview_item(index)
 
     def _on_item_activated(self, evt: wx.Event) -> None:
         index = self._event_index(evt)
@@ -228,9 +239,39 @@ class NowTvDialog(wx.Dialog):
                 return
         evt.Skip()
 
-    def _show_item_details(self, index: int) -> None:
+    def _preview_item(self, index: int) -> None:
+        # Zmiana zaznaczenia (np. strzalkami): pokaz podstawowe info natychmiast,
+        # a pelny opis z sieci dociagnij dopiero po chwili bezruchu (debounce).
         if index < 0 or index >= len(self._items):
             return
+        item = self._items[index]
+        summary = format_now_tv_item(item)
+        # Uniewaznij ewentualne pobranie w toku - wynik dla innej pozycji odrzucimy.
+        self._details_token += 1
+        self._details_timer.Stop()
+
+        if not item.details_ref:
+            self._pending_detail_index = None
+            self._details.SetValue(summary)
+            return
+
+        self._pending_detail_index = index
+        self._details.SetValue(summary)
+        self._details_timer.StartOnce(_DETAILS_DEBOUNCE_MS)
+
+    def _on_details_timer(self, _evt: wx.TimerEvent) -> None:
+        index = self._pending_detail_index
+        self._pending_detail_index = None
+        if index is None or self._closed:
+            return
+        self._show_item_details(index)
+
+    def _show_item_details(self, index: int) -> None:
+        # Natychmiastowe pobranie pelnego opisu (aktywacja/Enter albo po debounce).
+        if index < 0 or index >= len(self._items):
+            return
+        self._details_timer.Stop()
+        self._pending_detail_index = None
         item = self._items[index]
         summary = format_now_tv_item(item)
         self._details_token += 1
@@ -337,6 +378,7 @@ class NowTvDialog(wx.Dialog):
         self._closed = True
         self._request_token += 1
         self._details_token += 1
+        self._details_timer.Stop()
         self.Destroy()
 
     def _on_destroy(self, evt: wx.WindowDestroyEvent) -> None:
@@ -344,6 +386,7 @@ class NowTvDialog(wx.Dialog):
             self._closed = True
             self._request_token += 1
             self._details_token += 1
+            self._details_timer.Stop()
         evt.Skip()
 
 
