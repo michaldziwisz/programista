@@ -809,23 +809,33 @@ class TvTab(BaseScheduleTab):
         if self._now_tv_provider is None:
             return
         dialog = self._now_tv_dialog
-        if dialog is not None and not dialog.IsBeingDeleted():
-            dialog.Show(True)
-            dialog.Raise()
-            dialog.SetFocus()
-            return
+        if dialog is not None:
+            try:
+                if not dialog.IsBeingDeleted():
+                    dialog.Show(True)
+                    dialog.Raise()
+                    dialog.SetFocus()
+                    return
+            except RuntimeError:
+                # wx raises when Python still holds a wrapper for a deleted window.
+                pass
+            self._now_tv_dialog = None
 
         parent = wx.GetTopLevelParent(self) or self
         dialog = NowTvDialog(parent, self._now_tv_provider)
         self._now_tv_dialog = dialog
-        dialog.Bind(wx.EVT_WINDOW_DESTROY, self._on_now_tv_dialog_destroyed)
+        dialog.Bind(
+            wx.EVT_WINDOW_DESTROY,
+            lambda evt, expected=dialog: self._on_now_tv_dialog_destroyed(evt, expected),
+        )
         dialog.Show(True)
         dialog.start_loading()
         self._status_bar.SetStatusText("Otwarto Teraz w TV.")
 
-    def _on_now_tv_dialog_destroyed(self, evt: wx.WindowDestroyEvent) -> None:
-        dialog = self._now_tv_dialog
-        if evt.GetEventObject() is dialog:
+    def _on_now_tv_dialog_destroyed(
+        self, evt: wx.WindowDestroyEvent, expected_dialog: NowTvDialog
+    ) -> None:
+        if self._now_tv_dialog is expected_dialog:
             self._now_tv_dialog = None
             button = getattr(self, "_now_tv_button", None)
             if (
