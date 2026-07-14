@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import time
+from pathlib import Path
 
 import pytest
 import requests
@@ -227,6 +228,31 @@ def test_teleman_provider_get_now_schedule_translates_network_errors(
 
     with pytest.raises(RuntimeError, match=message):
         provider.get_now_schedule()
+
+
+_REAL_NOW_FIXTURE = Path(__file__).parent / "fixtures" / "teleman_teraz.html"
+
+
+def test_parse_teleman_now_schedule_on_real_page_snapshot() -> None:
+    # Regresja na realnym snapshocie sekcji "Teraz w TV" z teleman.pl/teraz.
+    # Chroni przed zmiana ukladu strony, ktorej testy syntetyczne moga nie wychwycic.
+    html = _REAL_NOW_FIXTURE.read_text(encoding="utf-8")
+
+    items = parse_teleman_now_schedule(html)
+
+    # Snapshot zawiera pelna ramowke "teraz i za chwile" - dziesiatki pozycji.
+    assert len(items) >= 20
+    # Kazda pozycja musi miec sensowne, niepuste dane - inaczej parser cos gubi.
+    assert all(item.title for item in items)
+    assert all(item.source.name for item in items)
+    assert all(item.source.id for item in items)
+    assert all(item.start_time is not None for item in items)
+    # Linki do szczegolow to bezpieczne sciezki Teleman.pl (/tv/...).
+    assert all(item.details_ref and item.details_ref.startswith("/tv/") for item in items)
+    # Na stronie "teraz" zawsze sa programy aktualnie emitowane.
+    assert any(item.is_current for item in items)
+    # ...oraz rozpoczynajace sie za chwile.
+    assert any(not item.is_current for item in items)
 
 
 def test_parse_teleman_stations() -> None:
