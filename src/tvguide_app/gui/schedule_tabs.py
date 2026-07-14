@@ -18,6 +18,7 @@ from tvguide_app.core.providers.base import ScheduleProvider
 from tvguide_app.core.search_index import SearchIndex, SearchKind
 from tvguide_app.core.settings import SettingsStore, TvAccessibilityFilters
 from tvguide_app.core.util import POLISH_MONTHS_NOMINATIVE
+from tvguide_app.gui.now_tv_dialog import NowTvDialog, NowTvProvider
 
 
 ViewMode = Literal["by_source", "by_day"]
@@ -786,11 +787,55 @@ class TvTab(BaseScheduleTab):
         favorites_store: FavoritesStore,
         on_favorites_changed: Callable[[], None],
         search_index: SearchIndex | None = None,
+        now_tv_provider: NowTvProvider | None = None,
     ) -> None:
         self._favorites_store = favorites_store
         self._on_favorites_changed = on_favorites_changed
         self._favorite_kind: FavoriteKind = "tv"
+        self._now_tv_provider = now_tv_provider
+        self._now_tv_dialog: NowTvDialog | None = None
         super().__init__(parent, provider, status_bar, search_index=search_index, search_kind="tv")
+
+    def _create_header_controls(self, header: wx.BoxSizer) -> None:
+        if self._now_tv_provider is None:
+            return
+        self._now_tv_button = wx.Button(self, label="&Teraz w TV")
+        self._now_tv_button.SetName("Teraz w TV")
+        self._now_tv_button.SetToolTip("Pokaż programy emitowane teraz i rozpoczynające się za chwilę")
+        self._now_tv_button.Bind(wx.EVT_BUTTON, self._on_now_tv)
+        header.Add(self._now_tv_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+    def _on_now_tv(self, _evt: wx.CommandEvent) -> None:
+        if self._now_tv_provider is None:
+            return
+        dialog = self._now_tv_dialog
+        if dialog is not None and not dialog.IsBeingDeleted():
+            dialog.Show(True)
+            dialog.Raise()
+            dialog.SetFocus()
+            return
+
+        parent = wx.GetTopLevelParent(self) or self
+        dialog = NowTvDialog(parent, self._now_tv_provider)
+        self._now_tv_dialog = dialog
+        dialog.Bind(wx.EVT_WINDOW_DESTROY, self._on_now_tv_dialog_destroyed)
+        dialog.Show(True)
+        dialog.start_loading()
+        self._status_bar.SetStatusText("Otwarto Teraz w TV.")
+
+    def _on_now_tv_dialog_destroyed(self, evt: wx.WindowDestroyEvent) -> None:
+        dialog = self._now_tv_dialog
+        if evt.GetEventObject() is dialog:
+            self._now_tv_dialog = None
+            button = getattr(self, "_now_tv_button", None)
+            if (
+                button is not None
+                and not self.IsBeingDeleted()
+                and not button.IsBeingDeleted()
+                and self.IsShownOnScreen()
+            ):
+                wx.CallAfter(button.SetFocus)
+        evt.Skip()
 
     def _init_list_columns(self, list_ctrl: wx.Window) -> None:
         self._show_end_time = False
