@@ -1,18 +1,23 @@
 from dataclasses import replace
-from datetime import time
+from datetime import date, time
 from pathlib import Path
 
 import pytest
 import requests
 
+from tvguide_app.core.models import ProviderId, Source, SourceId
 from tvguide_app.core.providers.teleman import (
     TELEMAN_BASE,
+    TelemanCategoryParseError,
     TelemanNowScheduleParseError,
     TelemanProvider,
+    TelemanSportScheduleParseError,
     parse_teleman_now_schedule,
     parse_teleman_show_details,
+    parse_teleman_sport_schedule,
     parse_teleman_station_schedule,
     parse_teleman_stations,
+    parse_teleman_tv_categories,
 )
 
 
@@ -44,6 +49,53 @@ NOW_HTML = """
 </table>
 """
 
+CATEGORIES_HTML = """
+<nav id="stations-index">
+  <a href="/program-tv/stacje/TVP-1">TVP 1</a>
+  <a href="/program-tv/stacje/CanalPlus-Sport">CANAL+ Sport</a>
+  <a href="/program-tv/stacje/TVP-Sport">TVP Sport</a>
+</nav>
+<div id="user-stations-form"><form>
+  <section class="renamed-category-wrapper">
+    <h3>Popularne</h3>
+    <label><input name="station" value="1"><span>TVP 1</span></label>
+  </section>
+  <fieldset>
+    <h2>Sportowe</h2>
+    <label><input name="station" value="31"><span>CANAL+ Sport</span></label>
+    <label><input name="station" value="86"><span>TVP Sport</span></label>
+    <label><input name="station" value="86"><span>TVP Sport</span>
+      <span class="new">nowa!</span></label>
+  </fieldset>
+</form></div>
+"""
+
+
+def _sport_page(rows: str, *, next_href: str | None = None) -> str:
+    pagination = (
+        f'<div class="pagination"><span class="next"><a href="{next_href}">następna</a></span></div>'
+        if next_href
+        else ""
+    )
+    return f"""
+    <table id="sports-listing">
+      <tr><th>Data</th><th>Godzina</th><th>Stacja</th><th>Tytuł</th><th>Kategoria</th></tr>
+      {rows}
+    </table>
+    {pagination}
+    """
+
+
+SPORT_ROW = """
+<tr class="odd">
+  <td>dziś, 14 lipca</td><td>12:00</td>
+  <td><a href="/program-tv/stacje/TVP-Sport?date=2026-07-14">TVP Sport</a></td>
+  <td><a class="prog-title" href="/tv/Test-Live-123" data-time="12:00-13:30">Test live</a>
+      <img class="live" alt="na żywo"><em>Mecz finałowy</em></td>
+  <td class="tags">Piłka nożna</td>
+</tr>
+"""
+
 
 class _FakeHttp:
     def __init__(self, html: str = "", error: Exception | None = None) -> None:
@@ -56,6 +108,16 @@ class _FakeHttp:
         if self.error is not None:
             raise self.error
         return self.html
+
+
+class _MappedFakeHttp:
+    def __init__(self, pages: dict[str, str]) -> None:
+        self.pages = pages
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def get_text(self, url: str, **kwargs: object) -> str:
+        self.calls.append((url, kwargs))
+        return self.pages[url]
 
 
 def _http_error(status_code: int) -> requests.HTTPError:
@@ -230,6 +292,14 @@ def test_teleman_provider_get_now_schedule_translates_network_errors(
         provider.get_now_schedule()
 
 
+def test_teleman_provider_get_schedule_translates_network_errors() -> None:
+    provider = TelemanProvider(_FakeHttp(error=requests.Timeout()))  # type: ignore[arg-type]
+    source = Source(ProviderId("teleman"), SourceId("TVP-1"), "TVP 1")
+
+    with pytest.raises(RuntimeError, match="Przekroczono czas oczekiwania"):
+        provider.get_schedule(source, date(2026, 7, 14))
+
+
 _REAL_NOW_FIXTURE = Path(__file__).parent / "fixtures" / "teleman_teraz.html"
 
 
@@ -253,6 +323,212 @@ def test_parse_teleman_now_schedule_on_real_page_snapshot() -> None:
     assert any(item.is_current for item in items)
     # ...oraz rozpoczynajace sie za chwile.
     assert any(not item.is_current for item in items)
+
+
+def test_parse_teleman_tv_categories_maps_names_to_station_slugs() -> None:
+    categories = parse_teleman_tv_categories(CATEGORIES_HTML)
+
+    assert [(category.id, category.name) for category in categories] == [
+        ("popularne", "Popularne"),
+        ("sport", "Sportowe"),
+    ]
+    assert [source.id for source in categories[1].sources] == ["CanalPlus-Sport", "TVP-Sport"]
+    assert all(source.provider_id == "teleman" for category in categories for source in category.sources)
+
+
+def test_parse_teleman_tv_categories_reports_changed_html() -> None:
+    with pytest.raises(TelemanCategoryParseError, match="Układ strony mógł się zmienić"):
+        parse_teleman_tv_categories("<html><h1>Ustawienia</h1></html>")
+
+
+_REAL_CATEGORIES_FIXTURE = Path(__file__).parent / "fixtures" / "teleman_moje_stacje.html"
+
+
+def test_parse_teleman_tv_categories_on_real_page_snapshot() -> None:
+    html = _REAL_CATEGORIES_FIXTURE.read_text(encoding="utf-8")
+
+    categories = parse_teleman_tv_categories(html)
+
+    assert len(categories) == 10
+    assert sum(len(category.sources) for category in categories) == 155
+    assert len({category.id for category in categories}) == len(categories)
+    assert all(category.sources for category in categories)
+    sport = next(category for category in categories if category.id == "sport")
+    assert any(source.id == "TVP-Sport" and source.name == "TVP Sport" for source in sport.sources)
+
+
+def test_teleman_provider_list_tv_categories_uses_endpoint_and_cache() -> None:
+    http = _FakeHttp(CATEGORIES_HTML)
+    provider = TelemanProvider(http)  # type: ignore[arg-type]
+
+    categories = provider.list_tv_categories(force_refresh=True)
+
+    assert len(categories) == 2
+    assert http.calls == [
+        (
+            TELEMAN_BASE + "/moje-stacje",
+            {
+                "cache_key": "teleman:station-categories",
+                "ttl_seconds": 7 * 24 * 3600,
+                "force_refresh": True,
+            },
+        )
+    ]
+
+
+def test_parse_teleman_sport_schedule_parses_future_and_overnight_dates() -> None:
+    rows = """
+    <tr class="odd">
+      <td>dziś, 31 grudnia</td><td>23:30</td>
+      <td><a href="/program-tv/stacje/TVP-Sport">TVP Sport</a></td>
+      <td><a class="prog-title" href="/tv/Nocny-Mecz-1" data-time="23:30-1:00">
+        Nocny mecz</a><em>finał</em></td><td class="tags">Piłka nożna</td>
+    </tr>
+    <tr class="even">
+      <td>noc czw./pt., 31 na 1 stycznia</td><td>1:15</td>
+      <td><a href="/program-tv/stacje/CanalPlus-Sport?date=2027-01-01">
+        CANAL+ Sport</a></td>
+      <td><a class="prog-title" href="/tv/Nocny-Mecz-1" data-time="1:15-2:45">
+        Nocny mecz</a><em>dogrywka</em></td><td class="tags">Piłka nożna</td>
+    </tr>
+    """
+
+    items = parse_teleman_sport_schedule(
+        _sport_page(rows),
+        reference_date=date(2026, 12, 31),
+    )
+
+    assert [item.day for item in items] == [date(2026, 12, 31), date(2027, 1, 1)]
+    assert items[0].start_time == time(23, 30)
+    assert items[0].end_time == time(1, 0)
+    assert items[0].subtitle == "finał"
+    assert items[0].details_summary == "finał"
+    assert items[1].source.id == "CanalPlus-Sport"
+    assert len(items) == 2  # Ten sam szczegół o innej porze/stacji nie jest duplikatem.
+
+
+def test_parse_teleman_sport_schedule_uses_nearest_year_without_date_query() -> None:
+    row = """
+    <tr class="odd"><td>piątek, 1 stycznia</td><td>8:00</td>
+      <td><a href="/program-tv/stacje/TVP-Sport">TVP Sport</a></td>
+      <td><a class="prog-title" href="/tv/Nowy-Rok-1" data-time="8:00-9:00">Nowy rok</a></td>
+      <td class="tags">Sport</td></tr>
+    """
+
+    [item] = parse_teleman_sport_schedule(
+        _sport_page(row),
+        reference_date=date(2026, 12, 31),
+    )
+
+    assert item.day == date(2027, 1, 1)
+
+
+def test_parse_teleman_sport_schedule_skips_broken_row_but_rejects_changed_table() -> None:
+    broken = "<tr class='odd'><td>dziś</td><td>12:00</td><td>brak</td><td>brak</td></tr>"
+    items = parse_teleman_sport_schedule(
+        _sport_page(broken + SPORT_ROW),
+        reference_date=date(2026, 7, 14),
+    )
+    assert [item.title for item in items] == ["Test live"]
+
+    with pytest.raises(TelemanSportScheduleParseError, match="Układ strony mógł się zmienić"):
+        parse_teleman_sport_schedule(_sport_page(broken), reference_date=date(2026, 7, 14))
+
+
+def test_parse_teleman_sport_schedule_accepts_recognized_empty_table() -> None:
+    assert parse_teleman_sport_schedule(_sport_page(""), reference_date=date(2026, 7, 14)) == []
+
+
+def test_parse_teleman_sport_schedule_reports_missing_table() -> None:
+    with pytest.raises(TelemanSportScheduleParseError, match="Układ strony mógł się zmienić"):
+        parse_teleman_sport_schedule("<html><p>Brak danych</p></html>")
+
+
+_REAL_SPORT_LIVE_FIXTURE = Path(__file__).parent / "fixtures" / "teleman_sport_live.html"
+
+
+def test_parse_teleman_sport_schedule_on_real_page_snapshot() -> None:
+    html = _REAL_SPORT_LIVE_FIXTURE.read_text(encoding="utf-8")
+
+    items = parse_teleman_sport_schedule(html, reference_date=date(2026, 7, 14))
+
+    assert len(items) == 20
+    assert all(item.provider_id == "teleman" and item.source.provider_id == "teleman" for item in items)
+    assert all(item.title and item.source.name and item.details_ref for item in items)
+    assert all(item.start_time is not None for item in items)
+    assert all(item.details_ref and item.details_ref.startswith("/tv/") for item in items)
+    assert len({str(item.source.id) for item in items}) >= 5
+
+
+def test_teleman_provider_get_live_sport_schedule_follows_pages_and_deduplicates() -> None:
+    second_row = SPORT_ROW.replace("TVP-Sport", "TVP-1").replace(
+        "Test-Live-123", "Drugi-Live-456"
+    ).replace("Test live", "Drugi live")
+    pages = {
+        TELEMAN_BASE + "/sport?live=1": _sport_page(
+            SPORT_ROW,
+            next_href="/sport?live=1&page=2",
+        ),
+        TELEMAN_BASE + "/sport?live=1&page=2": _sport_page(SPORT_ROW + second_row),
+    }
+    http = _MappedFakeHttp(pages)
+    provider = TelemanProvider(http)  # type: ignore[arg-type]
+
+    items = provider.get_live_sport_schedule(force_refresh=True)
+
+    assert [item.title for item in items] == ["Test live", "Drugi live"]
+    assert http.calls == [
+        (
+            TELEMAN_BASE + "/sport?live=1",
+            {
+                "cache_key": "teleman:sport:live:1",
+                "ttl_seconds": 60,
+                "force_refresh": True,
+            },
+        ),
+        (
+            TELEMAN_BASE + "/sport?live=1&page=2",
+            {
+                "cache_key": "teleman:sport:live:2",
+                "ttl_seconds": 60,
+                "force_refresh": True,
+            },
+        ),
+    ]
+
+
+def test_teleman_provider_get_live_sport_schedule_rejects_unsafe_next_link() -> None:
+    http = _MappedFakeHttp(
+        {
+            TELEMAN_BASE + "/sport?live=1": _sport_page(
+                SPORT_ROW,
+                next_href="https://example.com/sport?live=1&page=2",
+            )
+        }
+    )
+    provider = TelemanProvider(http)  # type: ignore[arg-type]
+
+    with pytest.raises(TelemanSportScheduleParseError, match="nieprawidłowy link"):
+        provider.get_live_sport_schedule()
+
+
+def test_teleman_provider_get_live_sport_schedule_detects_pagination_loop() -> None:
+    http = _MappedFakeHttp(
+        {
+            TELEMAN_BASE + "/sport?live=1": _sport_page(
+                SPORT_ROW,
+                next_href="/sport?live=1&page=2",
+            ),
+            TELEMAN_BASE + "/sport?live=1&page=2": _sport_page(
+                SPORT_ROW,
+                next_href="/sport?live=1&page=2",
+            ),
+        }
+    )
+    provider = TelemanProvider(http)  # type: ignore[arg-type]
+
+    with pytest.raises(TelemanSportScheduleParseError, match="zapętloną paginację"):
+        provider.get_live_sport_schedule()
 
 
 def test_parse_teleman_stations() -> None:

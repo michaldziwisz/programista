@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import re
-from datetime import date, time
-from urllib.parse import urljoin, urlsplit
+from datetime import date, time, timedelta
+import unicodedata
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
 
 from tvguide_app.core.http import HttpClient
-from tvguide_app.core.models import NowTvItem, ProviderId, ScheduleItem, Source, SourceId
+from tvguide_app.core.models import NowTvItem, ProviderId, ScheduleItem, Source, SourceId, TvCategory
 from tvguide_app.core.providers.base import ScheduleProvider
-from tvguide_app.core.util import clean_text, parse_time_hhmm
+from tvguide_app.core.util import POLISH_MONTHS_GENITIVE, clean_text, parse_time_hhmm
 
 
 TELEMAN_BASE = "https://www.teleman.pl"
@@ -18,10 +19,28 @@ _TELEMAN_NOW_PARSE_ERROR = (
     "Nie udało się odczytać sekcji „Teraz w TV” z serwisu Teleman.pl. "
     "Układ strony mógł się zmienić."
 )
+_TELEMAN_CATEGORIES_PARSE_ERROR = (
+    "Nie udało się odczytać kategorii stacji z serwisu Teleman.pl. "
+    "Układ strony mógł się zmienić."
+)
+_TELEMAN_SPORT_PARSE_ERROR = (
+    "Nie udało się odczytać listy transmisji sportowych z serwisu Teleman.pl. "
+    "Układ strony mógł się zmienić."
+)
 _TIME_TOKEN_RE = re.compile(r"(?<!\d)(\d{1,2}[:.]\d{2})(?!\d)")
+_MAX_SPORT_PAGES = 25
+_POLISH_MONTH_BY_NAME = {name.casefold(): number for number, name in POLISH_MONTHS_GENITIVE.items()}
 
 
 class TelemanNowScheduleParseError(ValueError):
+    pass
+
+
+class TelemanCategoryParseError(ValueError):
+    pass
+
+
+class TelemanSportScheduleParseError(ValueError):
     pass
 
 
@@ -55,6 +74,15 @@ class TelemanProvider(ScheduleProvider):
         today = date.today()
         return [today.fromordinal(today.toordinal() + i) for i in range(14)]
 
+    def list_tv_categories(self, *, force_refresh: bool = False) -> list[TvCategory]:
+        html = self._get_teleman_text(
+            TELEMAN_BASE + "/moje-stacje",
+            cache_key="teleman:station-categories",
+            ttl_seconds=7 * 24 * 3600,
+            force_refresh=force_refresh,
+        )
+        return parse_teleman_tv_categories(html)
+
     def get_now_schedule(self, *, force_refresh: bool = False) -> list[NowTvItem]:
         html = self._get_teleman_text(
             TELEMAN_BASE + "/teraz",
@@ -63,6 +91,57 @@ class TelemanProvider(ScheduleProvider):
             force_refresh=force_refresh,
         )
         return parse_teleman_now_schedule(html)
+
+    def get_live_sport_schedule(self, *, force_refresh: bool = False) -> list[ScheduleItem]:
+        url = TELEMAN_BASE + "/sport?live=1"
+        reference_date = date.today()
+        visited: set[str] = set()
+        seen_items: set[tuple[date, time | None, str, str | None]] = set()
+        items: list[ScheduleItem] = []
+
+        for _page_count in range(_MAX_SPORT_PAGES):
+            if url in visited:
+                raise TelemanSportScheduleParseError(
+                    "Teleman.pl zwrócił zapętloną paginację transmisji sportowych."
+                )
+            visited.add(url)
+
+            page_number = _teleman_live_sport_page_number(url)
+            html = self._get_teleman_text(
+                url,
+                cache_key=f"teleman:sport:live:{page_number}",
+                ttl_seconds=60,
+                force_refresh=force_refresh,
+            )
+            page_items, next_href = _parse_teleman_sport_page(
+                html,
+                reference_date=reference_date,
+            )
+            for item in page_items:
+                key = (
+                    item.day,
+                    item.start_time,
+                    str(item.source.id),
+                    item.details_ref,
+                )
+                if key in seen_items:
+                    continue
+                seen_items.add(key)
+                items.append(item)
+
+            if not next_href:
+                return items
+
+            next_url = _safe_teleman_live_sport_url(next_href, current_url=url)
+            if next_url is None:
+                raise TelemanSportScheduleParseError(
+                    "Teleman.pl zwrócił nieprawidłowy link do następnej strony transmisji."
+                )
+            url = next_url
+
+        raise TelemanSportScheduleParseError(
+            f"Lista transmisji sportowych przekroczyła bezpieczny limit {_MAX_SPORT_PAGES} stron."
+        )
 
     def get_schedule(
         self,
@@ -73,7 +152,7 @@ class TelemanProvider(ScheduleProvider):
     ) -> list[ScheduleItem]:
         url = f"{TELEMAN_BASE}/program-tv/stacje/{source.id}?date={day.isoformat()}"
         cache_key = f"teleman:station:{source.id}:{day.isoformat()}"
-        html = self._http.get_text(
+        html = self._get_teleman_text(
             url,
             cache_key=cache_key,
             ttl_seconds=60 * 60,
@@ -102,7 +181,7 @@ class TelemanProvider(ScheduleProvider):
             return item.details_summary or item.title
         url = urljoin(TELEMAN_BASE, item.details_ref)
         cache_key = f"teleman:show:{item.details_ref}"
-        html = self._http.get_text(
+        html = self._get_teleman_text(
             url,
             cache_key=cache_key,
             ttl_seconds=30 * 24 * 3600,
@@ -328,6 +407,278 @@ def _is_teleman_now_item_current(container, header_text: str) -> bool:
     if container.select_one(".bar") is not None:
         return True
     return re.match(r"^od\b", header_text.casefold()) is not None
+
+
+def parse_teleman_tv_categories(html: str) -> list[TvCategory]:
+    soup = BeautifulSoup(html, "lxml")
+    container = soup.select_one("#user-stations-form")
+    if container is None:
+        raise TelemanCategoryParseError(_TELEMAN_CATEGORIES_PARSE_ERROR)
+
+    stations_by_name: dict[str, tuple[str, str]] = {}
+    for slug, name in parse_teleman_stations(html):
+        stations_by_name.setdefault(name.casefold(), (slug, name))
+    if not stations_by_name:
+        raise TelemanCategoryParseError(_TELEMAN_CATEGORIES_PARSE_ERROR)
+
+    sections = []
+    for candidate in container.find_all(["div", "section", "fieldset"]):
+        heading = candidate.find(["h2", "h3"], recursive=False)
+        station_input = candidate.find("input", attrs={"name": "station"})
+        if heading is not None and station_input is not None:
+            sections.append((candidate, heading))
+
+    categories: list[TvCategory] = []
+    seen_category_ids: set[str] = set()
+    for section, heading in sections:
+        category_name = clean_text(heading.get_text(" "))
+        category_id = _teleman_category_id(category_name)
+        if not category_name or not category_id or category_id in seen_category_ids:
+            continue
+
+        sources: list[Source] = []
+        seen_source_ids: set[str] = set()
+        for label in section.find_all("label"):
+            station_input = label.find("input", attrs={"name": "station"})
+            if station_input is None:
+                continue
+            name_span = next(
+                (
+                    span
+                    for span in label.find_all("span")
+                    if "new" not in (span.get("class") or [])
+                ),
+                None,
+            )
+            station_name = clean_text(name_span.get_text(" ")) if name_span is not None else ""
+            station = stations_by_name.get(station_name.casefold())
+            if station is None:
+                continue
+            slug, canonical_name = station
+            if slug in seen_source_ids:
+                continue
+            seen_source_ids.add(slug)
+            sources.append(
+                Source(
+                    provider_id=ProviderId("teleman"),
+                    id=SourceId(slug),
+                    name=canonical_name,
+                )
+            )
+
+        if not sources:
+            continue
+        seen_category_ids.add(category_id)
+        categories.append(
+            TvCategory(
+                id=category_id,
+                name=category_name,
+                sources=tuple(sources),
+            )
+        )
+
+    if not categories:
+        raise TelemanCategoryParseError(_TELEMAN_CATEGORIES_PARSE_ERROR)
+    return categories
+
+
+def _teleman_category_id(name: str) -> str:
+    normalized = unicodedata.normalize("NFKD", name.casefold()).replace("ł", "l")
+    ascii_like = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    category_id = re.sub(r"[^a-z0-9]+", "-", ascii_like).strip("-")
+    return "sport" if category_id == "sportowe" else category_id
+
+
+def parse_teleman_sport_schedule(
+    html: str,
+    *,
+    reference_date: date | None = None,
+) -> list[ScheduleItem]:
+    items, _next_href = _parse_teleman_sport_page(
+        html,
+        reference_date=reference_date or date.today(),
+    )
+    return items
+
+
+def _parse_teleman_sport_page(
+    html: str,
+    *,
+    reference_date: date,
+) -> tuple[list[ScheduleItem], str | None]:
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.select_one("table#sports-listing")
+    if table is None:
+        table = next(
+            (candidate for candidate in soup.find_all("table") if _is_teleman_sport_table(candidate)),
+            None,
+        )
+    if table is None or not _is_teleman_sport_table(table):
+        raise TelemanSportScheduleParseError(_TELEMAN_SPORT_PARSE_ERROR)
+
+    items: list[ScheduleItem] = []
+    data_row_count = 0
+    for row in table.find_all("tr"):
+        cells = row.find_all("td", recursive=False)
+        if not cells:
+            continue
+        data_row_count += 1
+        if len(cells) < 4:
+            continue
+
+        station_link, station_slug = _find_teleman_station_link(cells[2])
+        if station_link is None or station_slug is None:
+            continue
+        station_name = clean_text(station_link.get_text(" "))
+        station_href = _get_string_attribute(station_link, "href")
+        if not station_name or not station_href:
+            continue
+
+        title_link = next(
+            (
+                link
+                for link in cells[3].find_all("a", href=True)
+                if _is_teleman_show_href(_get_string_attribute(link, "href"))
+            ),
+            None,
+        )
+        if title_link is None:
+            continue
+        details_ref = _get_string_attribute(title_link, "href")
+        title = clean_text(title_link.get_text(" "))
+        if not title or not details_ref:
+            continue
+
+        item_day = _parse_teleman_sport_day(
+            clean_text(cells[0].get_text(" ")),
+            station_href=station_href,
+            reference_date=reference_date,
+        )
+        if item_day is None:
+            continue
+
+        range_times = _parse_time_tokens(_get_string_attribute(title_link, "data-time"))
+        fallback_times = _parse_time_tokens(clean_text(cells[1].get_text(" ")))
+        start_time = range_times[0] if range_times else (fallback_times[0] if fallback_times else None)
+        end_time = range_times[1] if len(range_times) > 1 else None
+
+        subtitle_element = cells[3].find("em")
+        subtitle = clean_text(subtitle_element.get_text(" ")) if subtitle_element else None
+        subtitle = subtitle or None
+
+        source = Source(
+            provider_id=ProviderId("teleman"),
+            id=SourceId(station_slug),
+            name=station_name,
+        )
+        items.append(
+            ScheduleItem(
+                provider_id=ProviderId("teleman"),
+                source=source,
+                day=item_day,
+                start_time=start_time,
+                end_time=end_time,
+                title=title,
+                subtitle=subtitle,
+                details_ref=details_ref,
+                details_summary=subtitle,
+            )
+        )
+
+    if data_row_count and not items:
+        raise TelemanSportScheduleParseError(_TELEMAN_SPORT_PARSE_ERROR)
+
+    next_link = soup.select_one(".pagination .next a[href]")
+    next_href = _get_string_attribute(next_link, "href") if next_link is not None else None
+    return items, next_href or None
+
+
+def _is_teleman_sport_table(table) -> bool:
+    header_row = table.find("tr")
+    if header_row is None:
+        return False
+    headers = [clean_text(header.get_text(" ")).casefold() for header in header_row.find_all("th")]
+    return headers[:4] == ["data", "godzina", "stacja", "tytuł"]
+
+
+def _parse_teleman_sport_day(
+    text: str,
+    *,
+    station_href: str,
+    reference_date: date,
+) -> date | None:
+    query = parse_qs(urlsplit(station_href).query)
+    date_values = query.get("date") or []
+    if len(date_values) == 1:
+        try:
+            return date.fromisoformat(date_values[0])
+        except ValueError:
+            pass
+
+    normalized_text = clean_text(text)
+    match = re.search(
+        r"(?:(\d{1,2})\s+na\s+)?(\d{1,2})\s+([^\W\d_]+)",
+        normalized_text,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        day_number = int(match.group(2))
+        month_number = _POLISH_MONTH_BY_NAME.get(match.group(3).casefold())
+        if month_number is not None:
+            year_match = re.search(r"\b(\d{4})\b", normalized_text)
+            if year_match:
+                try:
+                    return date(int(year_match.group(1)), month_number, day_number)
+                except ValueError:
+                    return None
+
+            candidates: list[date] = []
+            for year in (reference_date.year - 1, reference_date.year, reference_date.year + 1):
+                try:
+                    candidates.append(date(year, month_number, day_number))
+                except ValueError:
+                    continue
+            if candidates:
+                return min(candidates, key=lambda candidate: abs((candidate - reference_date).days))
+
+    text_casefold = normalized_text.casefold()
+    if text_casefold.startswith("dziś"):
+        return reference_date
+    if text_casefold.startswith("jutro"):
+        return reference_date + timedelta(days=1)
+    return None
+
+
+def _safe_teleman_live_sport_url(href: str, *, current_url: str) -> str | None:
+    if not href or not _is_safe_teleman_href(href):
+        return None
+    parsed = urlsplit(urljoin(current_url, href))
+    if parsed.username or parsed.password or parsed.fragment:
+        return None
+    if (parsed.hostname or "").casefold() not in {"teleman.pl", "www.teleman.pl"}:
+        return None
+    if parsed.path.rstrip("/") != "/sport":
+        return None
+
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if set(query) - {"live", "page"} or query.get("live") != ["1"]:
+        return None
+    page_values = query.get("page")
+    if not page_values or len(page_values) != 1 or not page_values[0].isdigit():
+        return None
+    page_number = int(page_values[0])
+    if page_number < 1:
+        return None
+    return f"{TELEMAN_BASE}/sport?{urlencode({'live': '1', 'page': page_number})}"
+
+
+def _teleman_live_sport_page_number(url: str) -> int:
+    values = parse_qs(urlsplit(url).query).get("page") or ["1"]
+    try:
+        page_number = int(values[0])
+    except (TypeError, ValueError):
+        return 1
+    return max(1, page_number)
 
 
 def parse_teleman_stations(html: str) -> list[tuple[str, str]]:
